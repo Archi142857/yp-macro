@@ -1,11 +1,11 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
-;@Ahk2Exe-SetName YP Macro
-;@Ahk2Exe-SetDescription YP Macro
-;@Ahk2Exe-SetVersion 1.2.0.0
+;@Ahk2Exe-SetName YPMacro
+;@Ahk2Exe-SetDescription YPMacro
+;@Ahk2Exe-SetVersion 1.3.0.0
 ;@Ahk2Exe-SetMainIcon YPMacro.ico
 ; ==============================================================================
-;  YP Macro  v1.2  -  키보드/마우스 매크로   (AutoHotkey v2 스크립트)
+;  YPMacro  v1.3  -  키보드/마우스 매크로   (AutoHotkey v2 스크립트)
 ;
 ;  메인 창은 G Macro ver 2.0 과 같은 배치:
 ;    - 메뉴:  파일 | 시작 | 설정 | 정보
@@ -15,7 +15,8 @@
 ;    - 줄 더블클릭 = 수정,  우클릭 = 수정/지우기/위로/아래로,  Delete 키 = 지우기
 ;  기본 단축키:  F9 = 시작,  F10 = 중지,  F8 = 마우스 캡처(현재 좌표를 이동 이벤트로 추가)
 ;    - 중지 키는 실행 중이 아닐 때 눌러도 "매크로가 눌러 둔 키/버튼"을 전부 떼어 준다.
-;  설정과 마지막 목록은 레지스트리(HKEY_CURRENT_USER\Software\YP Macro)에 저장한다. exe 옆에 파일을 만들지 않는다.
+;  설정과 마지막 목록은 레지스트리(HKEY_CURRENT_USER\Software\YPMacro)에 저장한다. exe 옆에 파일을 만들지 않는다.
+;  (v1.2 까지 쓰던 키 이름 "YP Macro" 에 값이 있으면 처음 실행 때 새 키로 옮기고 옛 키는 지운다.)
 ;  (v1.1 까지 exe 옆에 만들던 YPMacro.ini / YPMacro_last.gmx, 옛 이름의 GMacroStyle.* 가 있으면
 ;   처음 실행 때 레지스트리로 옮기고 그 파일은 지운다.)
 ; ==============================================================================
@@ -29,9 +30,10 @@ SetDefaultMouseSpeed(0)
 SendMode("Event")               ; 기본 전송 방식. Input 은 보낼 때마다 키보드 훅을 잠깐 떼어서 중지 단축키를 놓칠 수 있다.
 DllCall("winmm\timeBeginPeriod", "UInt", 1)     ; Sleep 정밀도를 1ms 단위로
 
-APP_TITLE  := "YP Macro"
-APP_VER    := "1.2"
-REG_KEY    := "HKEY_CURRENT_USER\Software\YP Macro"   ; 설정 + 마지막 목록 저장 위치
+APP_TITLE  := "YPMacro"
+APP_VER    := "1.3"
+REG_KEY    := "HKEY_CURRENT_USER\Software\YPMacro"    ; 설정 + 마지막 목록 저장 위치
+REG_KEY_OLD := "HKEY_CURRENT_USER\Software\YP Macro"  ; v1.2 까지 쓰던 위치 (처음 실행 때 새 키로 옮긴다)
 FILE_MAGIC := "GMACROSTYLE1"                           ; [저장]/[불러오기] 하는 매크로 파일(.gmx) 형식은 그대로
 CLICK_HOLD := 30        ; 마우스 클릭 시 버튼을 누르고 있는 시간(ms)
 
@@ -42,6 +44,7 @@ App := { events: [], running: false, stopReq: false, capturing: false
 ui  := {}
 win := ""
 
+MoveOldRegKey()
 ImportLegacyFiles()
 LoadSettings()
 BuildGui()
@@ -98,6 +101,22 @@ ImportLegacyFiles() {
             }
         }
     }
+}
+
+; v1.2 까지는 레지스트리 키 이름이 "YP Macro"(띄어쓰기 있음) 였다.
+; 옛 키에 값이 있으면 새 키로 옮기고(새 키에 이미 설정이 있으면 옮기지 않음), 옛 키는 지운다.
+MoveOldRegKey() {
+    vals := []
+    try {
+        Loop Reg, REG_KEY_OLD, "V"
+            vals.Push({ name: A_LoopRegName, type: A_LoopRegType, value: RegRead() })
+    }
+    if (vals.Length = 0)
+        return
+    if !RegHasData()
+        for v in vals
+            try RegWrite(v.value, v.type, REG_KEY, v.name)
+    try RegDeleteKey(REG_KEY_OLD)
 }
 
 ; 레지스트리에 이미 저장된 설정/목록이 있는지
@@ -294,12 +313,19 @@ Notify(msg, ms := 2500) {
     }
 }
 
-; 제목 표시줄에 상태 표시.  대기: "이름  ver x.x  [대기중]",  실행 중: "[실행중 n회]  이름"
+; 제목 표시줄에 상태 표시. 창이 좁아서 잘리지 않게 짧게 쓴다.
+;  대기: "YPMacro v1.3",  실행 중: "실행중 12회" / "실행중 35만회",  시작 전: "3초 후 시작"
 SetRunTitle(state := "") {
-    if (state = "")
-        win.Title := APP_TITLE "  v" APP_VER "  [대기중]"
-    else
-        win.Title := "[" state "]  " APP_TITLE
+    win.Title := (state = "") ? APP_TITLE " v" APP_VER : state
+}
+
+; 반복 횟수를 제목에 들어갈 만큼 짧게:  9999 → "9999",  352817 → "35만",  123456789 → "1억"
+CountLabel(n) {
+    if (n < 10000)
+        return String(n)
+    if (n < 100000000)
+        return (n // 10000) "만"
+    return (n // 100000000) "억"
 }
 
 HotkeyHelp() {
@@ -1152,7 +1178,7 @@ StartMacro(fromMenu := false) {
             t0 := A_TickCount
             if (t0 - App.statusTick >= 250) {
                 App.statusTick := t0
-                SetRunTitle("실행중 " count "회")
+                SetRunTitle("실행중 " CountLabel(count) "회")
             }
             for i, ev in evs {
                 if (count = 1 && i < first)     ; "선택한 줄부터 시작"은 첫 바퀴에만 적용
