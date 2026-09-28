@@ -1,0 +1,107 @@
+# YP Macro 자동 빌드
+#  - main 에 올릴 때마다: YPMacro.ahk 로 YPMacro.exe 를 만들어 이 실행(run)의 Artifacts 에 올린다
+#  - 릴리스를 Publish 하면: exe 를 만들어 그 릴리스에 자동으로 첨부한다
+#  - Actions 탭 → Build → Run workflow 에 태그(예: v1.2)를 넣으면: 이미 있는 릴리스의 exe 를 새로 만든 것으로 바꾼다
+# 빌드 도구(AutoHotkey, Ahk2Exe)는 공식 릴리스에서 받고 SHA256 으로 검사한다.
+
+name: Build
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['README.md', 'LICENSE']
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'exe 를 첨부할 릴리스 태그 (예: v1.2). 비우면 빌드만 한다'
+        required: false
+        default: ''
+
+permissions:
+  contents: write   # 릴리스에 exe 를 첨부하는 데 필요
+
+env:
+  AHK_VERSION: '2.0.28'
+  AHK_SHA256: 'b63be7548792b4ad0dfe424d91cc69376694ed2f758245b7a75a0c77d693b478'
+  AHK2EXE_VERSION: '1.1.37.02a2'
+  AHK2EXE_SHA256: 'c29b8c3a5124850d79fc9e66e2ca79677c377d7f31631ad3022ba159c5d9e3be'
+  # 릴리스 이벤트면 그 릴리스의 태그, 수동 실행이면 입력한 태그
+  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}   # 수동 실행 때는 입력한 태그 시점의 소스로 빌드
+
+      - name: Download AutoHotkey and Ahk2Exe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          function Get-Verified([string]$Url, [string]$File, [string]$Sha256) {
+            Invoke-WebRequest -Uri $Url -OutFile $File
+            $actual = (Get-FileHash -Path $File -Algorithm SHA256).Hash
+            if ($actual -ne $Sha256) { throw "SHA256 mismatch for $File (expected $Sha256, got $actual)" }
+            Write-Output "OK  $File  $actual"
+          }
+          $ahkZip = Join-Path $env:RUNNER_TEMP 'ahk.zip'
+          $a2eZip = Join-Path $env:RUNNER_TEMP 'ahk2exe.zip'
+          Get-Verified "https://github.com/AutoHotkey/AutoHotkey/releases/download/v$($env:AHK_VERSION)/AutoHotkey_$($env:AHK_VERSION).zip" $ahkZip $env:AHK_SHA256
+          Get-Verified "https://github.com/AutoHotkey/Ahk2Exe/releases/download/Ahk2Exe$($env:AHK2EXE_VERSION)/Ahk2Exe$($env:AHK2EXE_VERSION).zip" $a2eZip $env:AHK2EXE_SHA256
+          Expand-Archive -Path $ahkZip -DestinationPath (Join-Path $env:RUNNER_TEMP 'ahk') -Force
+          Expand-Archive -Path $a2eZip -DestinationPath (Join-Path $env:RUNNER_TEMP 'ahk2exe') -Force
+
+      - name: Check version matches the release tag
+        if: env.RELEASE_TAG != ''
+        shell: pwsh
+        run: |
+          $src    = Get-Content -Path 'YPMacro.ahk' -Raw -Encoding utf8
+          $appVer = [regex]::Match($src, 'APP_VER\s*:=\s*"([^"]+)"').Groups[1].Value
+          $exeVer = [regex]::Match($src, ';@Ahk2Exe-SetVersion\s+(\S+)').Groups[1].Value
+          $tagVer = $env:RELEASE_TAG -replace '^[vV]', ''
+          $exeOk  = ($exeVer -eq $tagVer) -or $exeVer.StartsWith("$tagVer.")
+          if ($appVer -ne $tagVer -or -not $exeOk) {
+            Write-Output "::error::Version mismatch - tag $($env:RELEASE_TAG), APP_VER $appVer, SetVersion $exeVer. Update APP_VER and ;@Ahk2Exe-SetVersion in YPMacro.ahk first."
+            exit 1
+          }
+          Write-Output "Version OK: $tagVer"
+
+      - name: Compile YPMacro.exe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ahk2exe = Join-Path $env:RUNNER_TEMP 'ahk2exe\Ahk2Exe.exe'
+          $base    = Join-Path $env:RUNNER_TEMP 'ahk\AutoHotkey64.exe'
+          $in      = Join-Path $env:GITHUB_WORKSPACE 'YPMacro.ahk'
+          $out     = Join-Path $env:GITHUB_WORKSPACE 'YPMacro.exe'
+          $log     = Join-Path $env:RUNNER_TEMP 'ahk2exe.log'
+          # 아이콘, 이름, 버전은 YPMacro.ahk 맨 위의 ;@Ahk2Exe- 지시문으로 들어간다
+          $p = Start-Process -FilePath $ahk2exe -Wait -PassThru -NoNewWindow -RedirectStandardOutput $log `
+                 -ArgumentList "/in `"$in`" /out `"$out`" /base `"$base`" /compress 0 /silent verbose"
+          Get-Content -Path $log
+          if ($p.ExitCode -ne 0 -or -not (Test-Path $out)) { throw "Ahk2Exe failed (exit code $($p.ExitCode))" }
+          $v = (Get-Item $out).VersionInfo
+          Write-Output "ProductName=$($v.ProductName)  FileVersion=$($v.FileVersion)"
+          Write-Output "SHA256=$((Get-FileHash -Path $out -Algorithm SHA256).Hash)"
+
+      # SignPath 서명을 받게 되면, 이 업로드 단계 바로 다음에 서명 요청 단계를 넣는다
+      - name: Upload build artifact
+        id: upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: YPMacro
+          path: YPMacro.exe
+          if-no-files-found: error
+
+      - name: Attach exe to the release
+        if: env.RELEASE_TAG != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload $env:RELEASE_TAG YPMacro.exe --clobber --repo $env:GITHUB_REPOSITORY
