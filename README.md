@@ -7,7 +7,7 @@ G Macro 방식으로 쓰는 간단한 Windows 키보드/마우스 매크로입�
 
 ## 다운로드
 
-[Releases](../../releases)에서 `YPMacro.exe`를 받아 실행하면 됩니다. 설치는 필요 없습니다.
+[Releases](../../releases)에서 최신 버전의 exe 파일(예: `YPMacro-v1.2.exe`)을 받아 실행하면 됩니다. 설치는 필요 없습니다.
 
 - Windows 10 / 11 (64비트)
 - 처음 실행할 때 "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행**을 누르세요. 코드 서명이 없는 개인 제작 프로그램이라 뜨는 경고입니다.
@@ -51,6 +51,7 @@ G Macro 방식으로 쓰는 간단한 Windows 키보드/마우스 매크로입�
 
 ## 소스에서 실행 / 빌드
 
+- 릴리스에 올라가는 exe는 GitHub Actions가 이 저장소의 소스로 자동으로 만듭니다 ([build.yml](.github/workflows/build.yml)).
 - [AutoHotkey v2](https://www.autohotkey.com)가 설치되어 있으면 `YPMacro.ahk`를 더블클릭해 바로 실행할 수 있습니다.
 - exe 만들기: AutoHotkey Dash → **Compile** → Source에 `YPMacro.ahk`, Base File은 v2 64비트(`AutoHotkey64.exe`)를 고르고 **Convert**.
   아이콘, 프로그램 이름, 버전 정보는 스크립트 맨 위의 `;@Ahk2Exe-` 지시문으로 자동 적용됩니다.
