@@ -1,7 +1,8 @@
 # YP Macro 자동 빌드
-#  - main 에 올릴 때마다: YPMacro.ahk 로 YPMacro.exe 를 만들어 이 실행(run)의 Artifacts 에 올린다
+#  - main 에 올릴 때마다: YPMacro.ahk 로 exe 를 만들어 이 실행(run)의 Artifacts 에 올린다
 #  - 릴리스를 Publish 하면: exe 를 만들어 그 릴리스에 자동으로 첨부한다
 #  - Actions 탭 → Build → Run workflow 에 태그(예: v1.2)를 넣으면: 이미 있는 릴리스의 exe 를 새로 만든 것으로 바꾼다
+# exe 이름에는 YPMacro.ahk 의 APP_VER 가 붙는다 (예: YPMacro-v1.2.exe).
 # 빌드 도구(AutoHotkey, Ahk2Exe)는 공식 릴리스에서 받고 SHA256 으로 검사한다.
 
 name: Build
@@ -57,29 +58,36 @@ jobs:
           Expand-Archive -Path $ahkZip -DestinationPath (Join-Path $env:RUNNER_TEMP 'ahk') -Force
           Expand-Archive -Path $a2eZip -DestinationPath (Join-Path $env:RUNNER_TEMP 'ahk2exe') -Force
 
-      - name: Check version matches the release tag
-        if: env.RELEASE_TAG != ''
+      - name: Read version
         shell: pwsh
         run: |
           $src    = Get-Content -Path 'YPMacro.ahk' -Raw -Encoding utf8
           $appVer = [regex]::Match($src, 'APP_VER\s*:=\s*"([^"]+)"').Groups[1].Value
           $exeVer = [regex]::Match($src, ';@Ahk2Exe-SetVersion\s+(\S+)').Groups[1].Value
-          $tagVer = $env:RELEASE_TAG -replace '^[vV]', ''
-          $exeOk  = ($exeVer -eq $tagVer) -or $exeVer.StartsWith("$tagVer.")
-          if ($appVer -ne $tagVer -or -not $exeOk) {
-            Write-Output "::error::Version mismatch - tag $($env:RELEASE_TAG), APP_VER $appVer, SetVersion $exeVer. Update APP_VER and ;@Ahk2Exe-SetVersion in YPMacro.ahk first."
+          if ($appVer -notmatch '^\d+(\.\d+)*$') {
+            Write-Output "::error::APP_VER in YPMacro.ahk should look like 1.2 (found '$appVer')."
             exit 1
           }
-          Write-Output "Version OK: $tagVer"
+          if ($exeVer -ne $appVer -and -not $exeVer.StartsWith("$appVer.")) {
+            Write-Output "::error::Version mismatch - APP_VER $appVer, SetVersion $exeVer. Set ;@Ahk2Exe-SetVersion to $appVer.0.0 in YPMacro.ahk."
+            exit 1
+          }
+          if ($env:RELEASE_TAG -and ($env:RELEASE_TAG -replace '^[vV]', '') -ne $appVer) {
+            Write-Output "::error::Version mismatch - tag $($env:RELEASE_TAG), APP_VER $appVer. Update APP_VER and ;@Ahk2Exe-SetVersion in YPMacro.ahk first."
+            exit 1
+          }
+          Add-Content -Path $env:GITHUB_ENV -Value "APP_VER=$appVer"
+          Add-Content -Path $env:GITHUB_ENV -Value "EXE_NAME=YPMacro-v$appVer.exe"
+          Write-Output "Version $appVer -> YPMacro-v$appVer.exe"
 
-      - name: Compile YPMacro.exe
+      - name: Compile exe
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $ahk2exe = Join-Path $env:RUNNER_TEMP 'ahk2exe\Ahk2Exe.exe'
           $base    = Join-Path $env:RUNNER_TEMP 'ahk\AutoHotkey64.exe'
           $in      = Join-Path $env:GITHUB_WORKSPACE 'YPMacro.ahk'
-          $out     = Join-Path $env:GITHUB_WORKSPACE 'YPMacro.exe'
+          $out     = Join-Path $env:GITHUB_WORKSPACE $env:EXE_NAME
           $log     = Join-Path $env:RUNNER_TEMP 'ahk2exe.log'
           # 아이콘, 이름, 버전은 YPMacro.ahk 맨 위의 ;@Ahk2Exe- 지시문으로 들어간다
           $p = Start-Process -FilePath $ahk2exe -Wait -PassThru -NoNewWindow -RedirectStandardOutput $log `
@@ -95,8 +103,8 @@ jobs:
         id: upload
         uses: actions/upload-artifact@v7
         with:
-          name: YPMacro
-          path: YPMacro.exe
+          name: YPMacro-v${{ env.APP_VER }}
+          path: ${{ env.EXE_NAME }}
           if-no-files-found: error
 
       - name: Attach exe to the release
@@ -104,4 +112,19 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload $env:RELEASE_TAG YPMacro.exe --clobber --repo $env:GITHUB_REPOSITORY
+        run: |
+          $tag  = $env:RELEASE_TAG
+          $repo = $env:GITHUB_REPOSITORY
+          # 이름이 다른 예전 exe (예: YPMacro.exe) 는 지우고 새 exe 를 올린다
+          $names = gh release view $tag --repo $repo --json assets --jq '.assets[].name'
+          if ($LASTEXITCODE -ne 0) { throw "Cannot read release $tag" }
+          foreach ($n in @($names)) {
+            if ($n -like 'YPMacro*.exe' -and $n -ne $env:EXE_NAME) {
+              gh release delete-asset $tag $n --repo $repo --yes
+              if ($LASTEXITCODE -ne 0) { throw "Cannot delete old asset $n" }
+              Write-Output "Removed old asset: $n"
+            }
+          }
+          gh release upload $tag $env:EXE_NAME --clobber --repo $repo
+          if ($LASTEXITCODE -ne 0) { throw "Upload of $($env:EXE_NAME) failed" }
+          Write-Output "Uploaded $($env:EXE_NAME) to release $tag"
