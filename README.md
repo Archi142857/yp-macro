@@ -14,6 +14,7 @@ G Macro로 만든 `.gmc` 파일을 그대로 불러옵니다.
 - **메모장으로 쓰는 매크로 파일**: `[key w down], [delay 0.5]` 형식의 `.ypm`
 - **설정도 파일에 저장**: 테마, 단축키, 반복, 지연
 - **테마 4종**: 기본(G Macro 모양) / 다크 / 라떼 / 해커
+- **한국어 / English 화면**: 처음에는 Windows 언어를 따르고, `설정 → 언어`에서 바꿀 수 있음
 - **설치 없이 exe 하나**, 한글 깨짐 없음
 
 ### 다운로드
@@ -33,7 +34,7 @@ G Macro로 만든 `.gmc` 파일을 그대로 불러옵니다.
 | 반복 | **반복** 체크 (횟수: `설정 → 기타 설정`, 0 = 무한) |
 | 수정 / 지우기 | 줄 더블클릭 / Delete 키 (우클릭 메뉴도 있음) |
 | 저장 / 불러오기 | `파일` 메뉴, 창에 끌어다 놓기, `.ypm` 더블클릭 |
-| 단축키·테마 바꾸기 | `설정` 메뉴 |
+| 단축키·테마·언어 바꾸기 | `설정` 메뉴 |
 
 G Macro 파일은 `파일 → 불러오기`에서 `.gmc`를 고르면 됩니다. G Macro와 같은 속도로 맞출지 물으면 **예**를 누르세요.
 
@@ -82,7 +83,7 @@ G Macro 파일은 `파일 → 불러오기`에서 `.gmc`를 고르면 됩니다.
 ## English
 
 A free keyboard & mouse macro tool for Windows with the same layout as G Macro.
-Opens G Macro `.gmc` files as they are. *(The program's interface is in Korean.)*
+Opens G Macro `.gmc` files as they are.
 
 ### Features
 
@@ -91,6 +92,7 @@ Opens G Macro `.gmc` files as they are. *(The program's interface is in Korean.)
 - **Plain-text macro files**: `.ypm`, written like `[key w down], [delay 0.5]`
 - **Settings saved in the file**: theme, hotkeys, repeat, delays
 - **4 themes**: Default (G Macro look) / Dark / Latte / Hacker
+- **English / Korean interface**: follows your Windows language at first; change it in `Settings → Language`
 - **Portable**: a single exe, no installation
 
 ### Download
@@ -103,16 +105,16 @@ If "Windows protected your PC" appears, click **More info → Run anyway**.
 
 | Task | How |
 |---|---|
-| Add an event | **키보드 / 마우스 / 시간** (Keyboard / Mouse / Time) buttons |
-| Insert in the middle | Choose **삽입** (Insert), then add (goes below the selected row) |
+| Add an event | **Keyboard / Mouse / Time** buttons |
+| Insert in the middle | Choose **Insert**, then add (goes below the selected row) |
 | Start / Stop | **F9** / **F10** |
 | Add cursor position | **F8** |
-| Repeat | Check **반복** (Repeat); count in `설정 → 기타 설정` (Settings → Other), 0 = forever |
+| Repeat | Check **Repeat** (count: `Settings → Other Settings`, 0 = forever) |
 | Edit / Delete | Double-click a row / Delete key (right-click menu too) |
-| Save / Open | `파일` (File) menu, drag a file onto the window, or double-click a `.ypm` |
-| Change hotkeys / theme | `설정` (Settings) menu |
+| Save / Open | `File` menu, drag a file onto the window, or double-click a `.ypm` |
+| Change hotkeys / theme / language | `Settings` menu |
 
-To import a G Macro file, open the `.gmc` via `파일 → 불러오기` (File → Open). When asked whether to match G Macro's timing, click **예** (Yes).
+To import a G Macro file, open the `.gmc` via `File → Open`. When asked whether to match G Macro's timing, click **Yes**.
 
 ### Writing .ypm files
 
@@ -144,7 +146,7 @@ The leading `[settings]` is optional, and you can include only the items you nee
 
 ### Bugs & ideas
 
-In the app: `정보 → 버그 신고 / 기능 제안` (Info → Report a bug / Suggest a feature), or [Issues](../../issues)
+In the app: `Help → Report a Bug / Suggest a Feature`, or [Issues](../../issues)
 
 ### Notes
 
