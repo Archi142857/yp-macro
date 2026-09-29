@@ -1,0 +1,21 @@
+name: 기능 제안
+description: 있었으면 하는 기능이나 바뀌었으면 하는 점
+title: "[제안] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: 어떤 기능이 있으면 좋을까요?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 어디에 쓰려고 하나요?
+      description: 지금은 어떻게 하고 있는지, 무엇이 불편한지 적어 주세요.
+  - type: textarea
+    id: extra
+    attributes:
+      label: 참고할 만한 것
+      description: 비슷한 프로그램, 캡처, 링크 등
