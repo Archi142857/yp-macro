@@ -2,10 +2,10 @@
 #SingleInstance Force
 ;@Ahk2Exe-SetName YPMacro
 ;@Ahk2Exe-SetDescription YPMacro
-;@Ahk2Exe-SetVersion 1.3.0.0
+;@Ahk2Exe-SetVersion 1.4.0.0
 ;@Ahk2Exe-SetMainIcon YPMacro.ico
 ; ==============================================================================
-;  YPMacro  v1.3  -  키보드/마우스 매크로   (AutoHotkey v2 스크립트)
+;  YPMacro  v1.4  -  키보드/마우스 매크로   (AutoHotkey v2 스크립트)
 ;
 ;  메인 창은 G Macro ver 2.0 과 같은 배치:
 ;    - 메뉴:  파일 | 시작 | 설정 | 정보
@@ -14,6 +14,7 @@
 ;    - 추가 = 맨 끝에 붙임,  삽입 = 선택한 줄 바로 아래에 끼워 넣음
 ;    - 줄 더블클릭 = 수정,  우클릭 = 수정/지우기/위로/아래로,  Delete 키 = 지우기
 ;  기본 단축키:  F9 = 시작,  F10 = 중지,  F8 = 마우스 캡처(현재 좌표를 이동 이벤트로 추가)
+;  테마:  설정 → 테마 (기본 / 라이트 / 다크 / 해커).  G Macro 의 .gmc 파일은 [파일 → 불러오기]로 읽을 수 있다.
 ;    - 중지 키는 실행 중이 아닐 때 눌러도 "매크로가 눌러 둔 키/버튼"을 전부 떼어 준다.
 ;  설정과 마지막 목록은 레지스트리(HKEY_CURRENT_USER\Software\YPMacro)에 저장한다. exe 옆에 파일을 만들지 않는다.
 ;  (v1.2 까지 쓰던 키 이름 "YP Macro" 에 값이 있으면 처음 실행 때 새 키로 옮기고 옛 키는 지운다.)
@@ -24,6 +25,7 @@
 SetWorkingDir(A_ScriptDir)
 CoordMode("Mouse", "Screen")
 CoordMode("ToolTip", "Screen")
+CoordMode("Menu", "Screen")
 SetMouseDelay(-1)
 SetKeyDelay(-1, -1)
 SetDefaultMouseSpeed(0)
@@ -31,7 +33,10 @@ SendMode("Event")               ; 기본 전송 방식. Input 은 보낼 때마�
 DllCall("winmm\timeBeginPeriod", "UInt", 1)     ; Sleep 정밀도를 1ms 단위로
 
 APP_TITLE  := "YPMacro"
-APP_VER    := "1.3"
+APP_VER    := "1.4"
+APP_DATE   := "2026-09-29"                              ; 정보 창의 최종 수정일
+APP_AUTHOR := "LEE YOUNGPYO"
+APP_URL    := "https://github.com/Archi142857/yp-macro"
 REG_KEY    := "HKEY_CURRENT_USER\Software\YPMacro"    ; 설정 + 마지막 목록 저장 위치
 REG_KEY_OLD := "HKEY_CURRENT_USER\Software\YP Macro"  ; v1.2 까지 쓰던 위치 (처음 실행 때 새 키로 옮긴다)
 FILE_MAGIC := "GMACROSTYLE1"                           ; [저장]/[불러오기] 하는 매크로 파일(.gmx) 형식은 그대로
@@ -40,9 +45,35 @@ CLICK_HOLD := 30        ; 마우스 클릭 시 버튼을 누르고 있는 시간
 App := { events: [], running: false, stopReq: false, capturing: false
        , hk: Map(), hkEnabled: false, stopKey: { vk: 0, mods: [] }, held: Map(), statusTick: 0
        , dlg: "", dlgKind: "", dlgCtl: "", dlgCleanup: ""
+       , theme: "default", T: "", defBtn: Map(), dimCtl: Map(), linkCtl: Map()
        , pid: DllCall("GetCurrentProcessId", "UInt") }
 ui  := {}
 win := ""
+
+; ---- 테마 색 (0xRRGGBB).  "default" = 윈도우 기본 모양 그대로 ----
+;  bg 창 배경 / panel 목록·입력칸 / text 글자 / dim 흐린 글자 / line 선 / btn·btnLine·btnDown·btnText·btnDownText 버튼
+;  sel·selText 목록에서 고른 줄 / accent 기본 버튼 테두리·링크 / hover·hoverText 메뉴를 연 동안 / radius 버튼 모서리
+;  classic = 라디오·체크박스를 옛날 모양으로 그려서 글자색을 바꿀 수 있게 (어두운 테마용) / dark = 제목 표시줄·메뉴를 어둡게
+;  "기본" 은 G Macro 처럼: 윈도우 고전 모양 컨트롤(입체 버튼, 오목한 목록) + 굴림 9pt + 시스템 색
+THEME_ORDER := ["default", "light", "dark", "hacker"]
+THEMES := Map(
+    "default", { name: "기본" },
+    "light",   { name: "라이트", font: "Malgun Gothic", radius: 6, classic: false, dark: false
+               , bg: 0xFCFCFC, panel: 0xFFFFFF, text: 0x1F1F1F, dim: 0x7A7A7A, line: 0xDADFE6
+               , btn: 0xF2F6FB, btnLine: 0xBCCADB, btnDown: 0xD9E5F2, btnText: 0x1F1F1F, btnDownText: 0x1F1F1F
+               , sel: 0x0067C0, selText: 0xFFFFFF, accent: 0x0067C0, hover: 0xE6EEF7, hoverText: 0x1F1F1F },
+    "dark",    { name: "다크", font: "Malgun Gothic", radius: 6, classic: true, dark: true
+               , bg: 0x202020, panel: 0x2B2B2B, text: 0xE8E8E8, dim: 0x8C8C8C, line: 0x3F3F3F
+               , btn: 0x2F2F2F, btnLine: 0x4F4F4F, btnDown: 0x404040, btnText: 0xF0F0F0, btnDownText: 0xFFFFFF
+               , sel: 0x2E5F92, selText: 0xFFFFFF, accent: 0x5AA9F0, hover: 0x3D3D3D, hoverText: 0xFFFFFF },
+    "hacker",  { name: "해커", font: "Consolas", radius: 0, classic: true, dark: true
+               , bg: 0x000000, panel: 0x000000, text: 0x00FF41, dim: 0x00A12A, line: 0x00A12A
+               , btn: 0x000000, btnLine: 0x00A12A, btnDown: 0x00FF41, btnText: 0x00FF41, btnDownText: 0x000000
+               , sel: 0x00FF41, selText: 0x000000, accent: 0x00FF41, hover: 0x00FF41, hoverText: 0x000000 })
+
+OnMessage(0x002B, OnDrawItem)       ; WM_DRAWITEM     테마 색으로 버튼과 목록 줄 그리기
+OnMessage(0x002C, OnMeasureItem)    ; WM_MEASUREITEM  목록 줄 높이 (목록을 만들 때 오므로 BuildGui 보다 먼저)
+OnMessage(0x0020, OnSetCursor)      ; WM_SETCURSOR    정보 창의 링크 위에서 손 모양 커서
 
 MoveOldRegKey()
 ImportLegacyFiles()
@@ -186,6 +217,8 @@ LoadSettings() {
     App.sendMode     := CfgRead("SendMode", "Event")
     if !(App.sendMode = "Input" || App.sendMode = "Event")
         App.sendMode := "Event"
+    App.closeAfterAdd := CfgRead("CloseAfterAdd", "1") = "1"
+    App.theme        := CfgRead("Theme", "default")
 }
 
 SaveSettings() {
@@ -206,6 +239,8 @@ SaveSettings() {
         CfgWrite("Beep",         App.beep ? 1 : 0)
         CfgWrite("AutoAddPos",   App.autoAddPos ? 1 : 0)
         CfgWrite("SendMode",     App.sendMode)
+        CfgWrite("CloseAfterAdd", App.closeAfterAdd ? 1 : 0)
+        CfgWrite("Theme",        App.theme)
     }
 }
 
@@ -224,7 +259,7 @@ ExitHandler(*) {
 BuildGui() {
     global win
     win := Gui("+MinimizeBox -MaximizeBox", APP_TITLE)
-    win.SetFont("s9", "Malgun Gothic")
+    win.SetFont("s9", ClassicFace())                        ; 테마 글꼴은 ApplyTheme → ThemeControls 에서 맞춘다
     win.OnEvent("Close", (*) => ExitApp())
 
     ; ---- 메뉴:  파일 | 시작 | 설정 | 정보 -----------------------------------
@@ -239,35 +274,58 @@ BuildGui() {
     ui.stopName  := "중지"
     ui.mRun.Add(ui.startName, (*) => StartMacro(true))
     ui.mRun.Add(ui.stopName, (*) => StopMacro())
+    ui.mTheme := Menu()
+    for key in THEME_ORDER
+        ui.mTheme.Add(THEMES[key].name, PickTheme.Bind(key), "Radio")
     ui.mSet := Menu()
     ui.mSet.Add("키보드 설정...", (*) => ShowKeyboardSettings())
     ui.mSet.Add("마우스 설정...", (*) => ShowMouseSettings())
     ui.mSet.Add("기타 설정...", (*) => ShowEtcSettings())
+    ui.mSet.Add()
+    ui.mSet.Add("테마", ui.mTheme)
     ui.mBar := MenuBar()
     ui.mBar.Add("파일", ui.mFile)
     ui.mBar.Add("시작", ui.mRun)
     ui.mBar.Add("설정", ui.mSet)
     ui.mBar.Add("정보", (*) => ShowAbout())
-    win.MenuBar := ui.mBar
 
-    ; ---- 이벤트 목록 (첫 줄 "1. 시작" 은 고정) --------------------------------
-    ui.lb := win.AddListBox("x8 y8 w176 h142 0x100")        ; 0x100 = 높이를 줄 단위로 자르지 않음
+    ; ---- 테마용 메뉴 줄: 기본 테마가 아닐 때 윈도우 메뉴 막대 대신 보인다 (메뉴 막대는 색을 바꿀 수 없어서) ----
+    ui.menuRow := []
+    for i, name in ["파일", "시작", "설정", "정보"] {
+        mi := win.AddText("x" (4 + (i - 1) * 38) " y2 w36 h19 Center 0x200 Hidden", name)   ; 0x200 = 세로 가운데
+        mi.OnEvent("Click", MenuRowClick.Bind(i))
+        ui.menuRow.Push(mi)
+    }
+    ui.menuLine := win.AddText("x0 y22 w256 h1 Hidden")
+
+    ; ---- 이벤트 목록 (첫 줄 "1. 시작" 은 고정).  테마 색으로 그리려고 줄을 직접 그린다 ----
+    ; 0x100 = 높이를 줄 단위로 자르지 않음,  0x10 = 줄을 직접 그림(고정 높이),  0x40 = 글자 목록 유지
+    ; 크기와 위치는 G Macro 창에서 잰 값 (창 안쪽 256 x 187)
+    ui.lb := win.AddListBox("x14 y15 w158 h141 0x150")
     ui.lb.OnEvent("DoubleClick", (*) => EditRow(ui.lb.Value))
     ui.lb.OnEvent("ContextMenu", ListContextMenu)
 
     ; ---- 오른쪽 버튼 4개 -----------------------------------------------------
-    win.AddButton("x194 y12 w70 h27", "키보드").OnEvent("Click", (*) => ShowKeyDialog())
-    win.AddButton("x194 y47 w70 h27", "마우스").OnEvent("Click", (*) => ShowMouseDialog())
-    win.AddButton("x194 y82 w70 h27", "시간").OnEvent("Click", (*) => ShowTimeDialog())
-    win.AddButton("x194 y117 w70 h27", "지우기").OnEvent("Click", (*) => DeleteSel())
+    b1 := win.AddButton("x180 y17 w68 h29", "키보드")
+    b2 := win.AddButton("x180 y53 w68 h29", "마우스")
+    b3 := win.AddButton("x180 y89 w68 h29", "시간")
+    b4 := win.AddButton("x180 y125 w68 h29", "지우기")
+    b1.OnEvent("Click", (*) => ShowKeyDialog())
+    b2.OnEvent("Click", (*) => ShowMouseDialog())
+    b3.OnEvent("Click", (*) => ShowTimeDialog())
+    b4.OnEvent("Click", (*) => DeleteSel())
 
     ; ---- 아래:  (추가 / 삽입)  [반복] ----------------------------------------
-    ui.rAppend := win.AddRadio("x12 y158 w50 h20 Group", "추가")
-    ui.rInsert := win.AddRadio("x64 y158 w50 h20", "삽입")
-    ui.cbRepeat := win.AddCheckBox("x122 y158 w56 h20", "반복")
+    ui.rAppend := win.AddRadio("x15 y163 w48 h18 Group", "추가")
+    ui.rInsert := win.AddRadio("x65 y163 w50 h18", "삽입")
+    ui.cbRepeat := win.AddCheckBox("x120 y163 w56 h18", "반복")
     ui.rAppend.Value := App.insertMode ? 0 : 1
     ui.rInsert.Value := App.insertMode ? 1 : 0
     ui.cbRepeat.Value := App.repeatOn
+
+    ; 테마 메뉴 줄이 보일 때는 아래 컨트롤들을 그 높이만큼 내린다: [컨트롤, x, y]
+    ui.layout := [[ui.lb, 14, 15], [b1, 180, 17], [b2, 180, 53], [b3, 180, 89], [b4, 180, 125]
+                , [ui.rAppend, 15, 163], [ui.rInsert, 65, 163], [ui.cbRepeat, 120, 163]]
 
     ; 목록 우클릭 메뉴
     ui.ctx := Menu()
@@ -281,7 +339,8 @@ BuildGui() {
 
     win.Opt((App.onTop ? "+" : "-") "AlwaysOnTop")
     RefreshList(1)
-    win.Show("w272 h186")
+    ApplyTheme(App.theme, true)
+    win.Show("w256 h" MainHeight())
 }
 
 ListContextMenu(lb, item, isRightClick, x, y) {
@@ -302,6 +361,335 @@ SelectRowAt(lb, x, y) {
         return 0
     lb.Choose((r & 0xFFFF) + 1)
     return (r & 0xFFFF) + 1
+}
+
+; ==============================================================================
+;  테마  (설정 → 테마).  "기본" 은 윈도우 기본 모양 그대로, 나머지는 THEMES 의 색으로 직접 칠한다.
+;   - 버튼: owner-draw 로 바꿔서 직접 그림 (기본 테마로 돌아오면 원래 버튼으로)
+;   - 목록: 처음부터 owner-draw 목록이라 테마 색 / 윈도우 기본색으로 줄을 그림
+;   - 라디오·체크박스: 어두운 테마에서는 옛날 모양(-Theme)으로 그려야 글자색이 먹는다
+;   - 메뉴 막대는 색을 바꿀 수 없어서, 테마를 쓰는 동안은 같은 모양의 글자 메뉴 줄로 바꿔 보여 준다
+;   - 제목 표시줄 색(윈도우 11)과 팝업 메뉴 어둡게(윈도우 10 1903 이상)는 되는 곳에서만
+; ==============================================================================
+PickTheme(key, *) {
+    ApplyTheme(key)
+    try CfgWrite("Theme", key)
+}
+
+; 메인 창에 테마를 적용한다. init = 창을 처음 만들 때 (아직 보이기 전)
+ApplyTheme(key, init := false) {
+    if !THEMES.Has(key)
+        key := "default"
+    App.theme := key
+    App.T := T := (key = "default") ? "" : THEMES[key]
+    SetMenuDarkMode(T && T.dark)
+    for k in THEME_ORDER {
+        if (k = key)
+            ui.mTheme.Check(THEMES[k].name)
+        else
+            ui.mTheme.Uncheck(THEMES[k].name)
+    }
+    win.BackColor := T ? Hex6(T.bg) : "Default"
+    win.MenuBar := T ? "" : ui.mBar
+    ThemeControls(win)
+    for mi in ui.menuRow
+        mi.Visible := T ? true : false
+    ui.menuLine.Visible := T ? true : false
+    if T
+        ui.menuLine.Opt("Background" Hex6(T.line))
+    dy := T ? 23 : 0
+    for item in ui.layout
+        item[1].Move(item[2], item[3] + dy)
+    SetTitleBarColors(win.Hwnd)
+    if !init {
+        win.Show("w256 h" MainHeight() " NA")
+        RedrawAll(win.Hwnd)
+    }
+}
+
+MainHeight() => App.T ? 210 : 187
+
+; 창 안의 컨트롤 색과 글꼴을 현재 테마에 맞춘다 (메인 창과 모든 대화상자 공통). 글자 크기와 굵기는 그대로 둔다.
+ThemeControls(g) {
+    T := App.T
+    face := T ? T.font : ClassicFace()
+    fg := T ? Hex6(T.text) : "Default"
+    lines := []
+    for hwnd, ctrl in g {
+        switch ctrl.Type {
+            case "Button":
+                ctrl.SetFont(, face)
+                SetOwnerDrawButton(ctrl, T ? true : false)
+                if !T
+                    ctrl.Opt("-Theme")                      ; G Macro 처럼 입체 버튼
+            case "ListBox":
+                ctrl.SetFont("c" fg, face)
+                ctrl.Opt(T ? "Background" Hex6(T.panel) : "BackgroundDefault")
+                if T {
+                    ctrl.Opt("+Theme")
+                    SetCtlTheme(hwnd, T.dark ? "DarkMode_Explorer" : "")
+                } else
+                    ctrl.Opt("-Theme")                      ; 오목한 고전 테두리
+                if (ctrl = ui.lb)
+                    UpdateListItemHeight()
+            case "Radio", "CheckBox":
+                ctrl.Opt((!T || T.classic) ? "-Theme" : "+Theme")
+                ctrl.SetFont("c" fg, face)
+                ctrl.Opt(T ? "Background" Hex6(T.bg) : "BackgroundDefault")
+            case "Text":
+                if ((ControlGetStyle(hwnd) & 0x1F) = 0x10) {        ; 가로 구분선(SS_ETCHEDHORZ)은 아래에서 테마 색 선으로 바꾼다
+                    lines.Push(ctrl)
+                    continue
+                }
+                if App.linkCtl.Has(hwnd)
+                    c := T ? Hex6(T.accent) : "0066CC"
+                else if App.dimCtl.Has(hwnd)
+                    c := T ? Hex6(T.dim) : "Gray"
+                else
+                    c := fg
+                ctrl.SetFont("c" c, face)
+                ctrl.Opt(T ? "Background" Hex6(T.bg) : "BackgroundDefault")
+            case "Edit", "DDL", "ComboBox":
+                ctrl.SetFont("c" fg, face)
+                ctrl.Opt(T ? "Background" Hex6(T.panel) : "BackgroundDefault")
+                if T {
+                    ctrl.Opt("+Theme")
+                    SetCtlTheme(hwnd, T.dark ? "DarkMode_CFD" : "")
+                } else
+                    ctrl.Opt("-Theme")
+            case "Hotkey":
+                ctrl.SetFont(, face)
+        }
+    }
+    if T {                                                  ; 대화상자에만 있고, 대화상자는 열 때마다 새로 만든다
+        for ctrl in lines {
+            ctrl.GetPos(&x, &y, &w)
+            ctrl.Visible := false
+            g.AddText("x" x " y" y " w" w " h1 Background" Hex6(T.line))
+        }
+    }
+}
+
+; 버튼을 테마 색으로 직접 그리게(BS_OWNERDRAW) 하거나 원래 버튼으로 되돌린다
+SetOwnerDrawButton(ctrl, on) {
+    style := ControlGetStyle(ctrl.Hwnd)
+    kind := style & 0xF
+    if on {
+        if (kind = 0xB)
+            return
+        if (kind = 1)                                       ; BS_DEFPUSHBUTTON: 테두리를 강조색으로
+            App.defBtn[ctrl.Hwnd] := true
+        newKind := 0xB
+    } else {
+        if (kind != 0xB)
+            return
+        newKind := App.defBtn.Has(ctrl.Hwnd) ? 1 : 0
+    }
+    SendMessage(0x00F4, (style & 0xFFF0) | newKind, 1, ctrl.Hwnd)      ; BM_SETSTYLE + 다시 그리기
+}
+
+OnDrawItem(wParam, lParam, msg, hwnd) {
+    kind := NumGet(lParam, 0, "UInt")
+    if (kind != 2 && kind != 4)                             ; ODT_LISTBOX, ODT_BUTTON 만
+        return
+    o := (A_PtrSize = 8) ? 24 : 20                          ; DRAWITEMSTRUCT 의 hwndItem 위치
+    item  := NumGet(lParam, 8, "UInt")
+    state := NumGet(lParam, 16, "UInt")
+    ctl   := NumGet(lParam, o, "Ptr")
+    dc    := NumGet(lParam, o + A_PtrSize, "Ptr")
+    prc   := lParam + o + 2 * A_PtrSize                     ; rcItem (RECT) 주소
+    if (kind = 4)
+        DrawThemedButton(ctl, dc, prc, state)
+    else
+        DrawListItem(ctl, dc, prc, item, state)
+    return true
+}
+
+OnMeasureItem(wParam, lParam, msg, hwnd) {
+    if (NumGet(lParam, 0, "UInt") = 2) {                    ; 목록: 임시 높이. 만든 뒤 UpdateListItemHeight 가 글꼴에 맞춘다
+        NumPut("UInt", Round(16 * A_ScreenDPI / 96), lParam, 16)
+        return true
+    }
+}
+
+OnSetCursor(wParam, lParam, msg, hwnd) {
+    if App.linkCtl.Has(wParam) {
+        DllCall("SetCursor", "Ptr", DllCall("LoadCursor", "Ptr", 0, "Ptr", 32649, "Ptr"))     ; IDC_HAND
+        return true
+    }
+}
+
+DrawThemedButton(ctl, dc, prc, state) {
+    T := App.T
+    if !T
+        return
+    x1 := NumGet(prc, 0, "Int"), y1 := NumGet(prc, 4, "Int"), x2 := NumGet(prc, 8, "Int"), y2 := NumGet(prc, 12, "Int")
+    down := state & 0x1
+    FillRectColor(dc, prc, T.bg)                            ; 둥근 모서리 바깥은 창 배경
+    pen := DllCall("CreatePen", "Int", 0, "Int", 1, "UInt", BGR(App.defBtn.Has(ctl) ? T.accent : T.btnLine), "Ptr")
+    br  := DllCall("CreateSolidBrush", "UInt", BGR(down ? T.btnDown : T.btn), "Ptr")
+    op  := DllCall("SelectObject", "Ptr", dc, "Ptr", pen, "Ptr")
+    ob  := DllCall("SelectObject", "Ptr", dc, "Ptr", br, "Ptr")
+    if T.radius
+        DllCall("RoundRect", "Ptr", dc, "Int", x1, "Int", y1, "Int", x2, "Int", y2, "Int", T.radius, "Int", T.radius)
+    else
+        DllCall("Rectangle", "Ptr", dc, "Int", x1, "Int", y1, "Int", x2, "Int", y2)
+    DllCall("SelectObject", "Ptr", dc, "Ptr", op)
+    DllCall("SelectObject", "Ptr", dc, "Ptr", ob)
+    DllCall("DeleteObject", "Ptr", pen)
+    DllCall("DeleteObject", "Ptr", br)
+    of := DllCall("SelectObject", "Ptr", dc, "Ptr", SendMessage(0x0031, 0, 0, ctl), "Ptr")     ; WM_GETFONT
+    DllCall("SetBkMode", "Ptr", dc, "Int", 1)                                                ; TRANSPARENT
+    DllCall("SetTextColor", "Ptr", dc, "UInt", BGR((state & 0x4) ? T.dim : down ? T.btnDownText : T.btnText))
+    DllCall("DrawText", "Ptr", dc, "Str", ControlGetText(ctl), "Int", -1, "Ptr", prc, "UInt", 0x25)   ; 가운데, 한 줄
+    DllCall("SelectObject", "Ptr", dc, "Ptr", of)
+    if ((state & 0x10) && !(state & 0x200)) {               ; 키보드로 포커스를 옮겼을 때만 안쪽에 강조색 테두리
+        fr := Buffer(16)
+        NumPut("Int", x1 + 3, "Int", y1 + 3, "Int", x2 - 3, "Int", y2 - 3, fr)
+        br := DllCall("CreateSolidBrush", "UInt", BGR(down ? T.btnDownText : T.accent), "Ptr")
+        DllCall("FrameRect", "Ptr", dc, "Ptr", fr, "Ptr", br)
+        DllCall("DeleteObject", "Ptr", br)
+    }
+}
+
+DrawListItem(ctl, dc, prc, item, state) {
+    T := App.T
+    sel := state & 0x1
+    if T {
+        bg := BGR(sel ? T.sel : T.panel)
+        fg := BGR(sel ? T.selText : T.text)
+    } else {                                                ; 기본 테마: 윈도우 목록과 같은 색
+        bg := DllCall("GetSysColor", "Int", sel ? 13 : 5, "UInt")
+        fg := DllCall("GetSysColor", "Int", sel ? 14 : 8, "UInt")
+    }
+    br := DllCall("CreateSolidBrush", "UInt", bg, "Ptr")
+    DllCall("FillRect", "Ptr", dc, "Ptr", prc, "Ptr", br)
+    DllCall("DeleteObject", "Ptr", br)
+    if (item != 0xFFFFFFFF) {
+        len := SendMessage(0x018A, item, 0, ctl)            ; LB_GETTEXTLEN
+        buf := Buffer((len + 1) * 2, 0)
+        SendMessage(0x0189, item, buf.Ptr, ctl)             ; LB_GETTEXT
+        tr := Buffer(16)
+        NumPut("Int", NumGet(prc, 0, "Int") + 3, "Int", NumGet(prc, 4, "Int"), "Int", NumGet(prc, 8, "Int") - 2, "Int", NumGet(prc, 12, "Int"), tr)
+        of := DllCall("SelectObject", "Ptr", dc, "Ptr", SendMessage(0x0031, 0, 0, ctl), "Ptr")
+        DllCall("SetBkMode", "Ptr", dc, "Int", 1)
+        DllCall("SetTextColor", "Ptr", dc, "UInt", fg)
+        DllCall("DrawText", "Ptr", dc, "Ptr", buf, "Int", -1, "Ptr", tr, "UInt", 0x8824)     ; 한 줄, 세로 가운데, & 그대로, 넘치면 …
+        DllCall("SelectObject", "Ptr", dc, "Ptr", of)
+    }
+    if (!T && (state & 0x10) && !(state & 0x200))
+        DllCall("DrawFocusRect", "Ptr", dc, "Ptr", prc)
+}
+
+; 목록 줄 높이를 지금 글꼴에 맞춘다 (기본 테마는 윈도우 목록과 같게 = G Macro 와 같게, 다른 테마는 2px 여유)
+UpdateListItemHeight() {
+    lb := ui.lb.Hwnd
+    dc := DllCall("GetDC", "Ptr", lb, "Ptr")
+    of := DllCall("SelectObject", "Ptr", dc, "Ptr", SendMessage(0x0031, 0, 0, lb), "Ptr")
+    tm := Buffer(64, 0)
+    DllCall("GetTextMetrics", "Ptr", dc, "Ptr", tm)
+    DllCall("SelectObject", "Ptr", dc, "Ptr", of)
+    DllCall("ReleaseDC", "Ptr", lb, "Ptr", dc)
+    SendMessage(0x01A0, 0, NumGet(tm, 0, "Int") + (App.T ? 2 : 0), lb)      ; LB_SETITEMHEIGHT
+}
+
+; 테마 메뉴 줄의 [파일] [시작] [설정] [정보]
+MenuRowClick(i, ctrl, *) {
+    if (i = 4)
+        return ShowAbout()
+    T := App.T
+    if T {                                                  ; 메뉴가 열려 있는 동안 강조
+        ctrl.Opt("Background" Hex6(T.hover))
+        ctrl.SetFont("c" Hex6(T.hoverText))
+    }
+    WinGetPos(&x, &y, &w, &h, ctrl.Hwnd)
+    m := [ui.mFile, ui.mRun, ui.mSet][i]
+    m.Show(x, y + h)
+    if (T && T = App.T) {                                   ; 메뉴에서 테마를 바꿨으면 ApplyTheme 가 이미 칠했다
+        ctrl.Opt("Background" Hex6(T.bg))
+        ctrl.SetFont("c" Hex6(T.text))
+    }
+}
+
+; 제목 표시줄: 어두운 테마면 어둡게(윈도우 10 20H1 이상), 테마 색으로 칠하기(윈도우 11). 안 되는 곳에서는 그냥 넘어간다.
+SetTitleBarColors(hwnd) {
+    T := App.T
+    dark := (T && T.dark) ? 1 : 0
+    if DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", hwnd, "UInt", 20, "Int*", &dark, "UInt", 4)
+        DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", hwnd, "UInt", 19, "Int*", &dark, "UInt", 4)
+    for attr, c in Map(35, T ? BGR(T.bg) : 0xFFFFFFFF, 36, T ? BGR(T.text) : 0xFFFFFFFF, 34, T ? BGR(T.line) : 0xFFFFFFFF)
+        DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", hwnd, "UInt", attr, "UInt*", &c, "UInt", 4)   ; 캡션 / 제목 글자 / 테두리
+}
+
+; 팝업 메뉴(드롭다운, 우클릭, 트레이)를 어둡게. 윈도우 10 1903 이상의 uxtheme 비공개 함수(135, 136)라 없으면 넘어간다.
+SetMenuDarkMode(dark) {
+    static pSet := 0, pFlush := 0, tried := false
+    if !tried {
+        tried := true
+        if (VerCompare(A_OSVersion, "10.0.18362") >= 0) {
+            hUx := DllCall("GetModuleHandle", "Str", "uxtheme", "Ptr")
+            if !hUx
+                hUx := DllCall("LoadLibrary", "Str", "uxtheme", "Ptr")
+            if hUx {
+                pSet := DllCall("GetProcAddress", "Ptr", hUx, "Ptr", 135, "Ptr")
+                pFlush := DllCall("GetProcAddress", "Ptr", hUx, "Ptr", 136, "Ptr")
+            }
+        }
+    }
+    if (pSet && pFlush) {
+        DllCall(pSet, "Int", dark ? 2 : 0)                  ; 2 = 항상 어둡게, 0 = 기본
+        DllCall(pFlush)
+    }
+}
+
+SetCtlTheme(hwnd, name) {
+    if (name = "")
+        DllCall("uxtheme\SetWindowTheme", "Ptr", hwnd, "Ptr", 0, "Ptr", 0)
+    else
+        DllCall("uxtheme\SetWindowTheme", "Ptr", hwnd, "Str", name, "Ptr", 0)
+}
+
+RedrawAll(hwnd) => DllCall("RedrawWindow", "Ptr", hwnd, "Ptr", 0, "Ptr", 0, "UInt", 0x0485)    ; 지우고 다시, 테두리·자식 포함
+
+; 기본 테마 글꼴: G Macro 와 같은 굴림. 굴림이 없는 윈도우(한국어 추가 글꼴 없음)에서는 맑은 고딕.
+ClassicFace() {
+    static face := ""
+    if (face = "")
+        face := FontExists("Gulim") ? "Gulim" : "Malgun Gothic"
+    return face
+}
+
+; 글꼴을 만들어 실제로 골라진 이름을 본다. 없는 글꼴이면 윈도우가 다른 글꼴로 바꿔 준다.
+FontExists(name) {
+    dc := DllCall("GetDC", "Ptr", 0, "Ptr")
+    hf := DllCall("CreateFont", "Int", -12, "Int", 0, "Int", 0, "Int", 0, "Int", 400, "UInt", 0, "UInt", 0, "UInt", 0
+        , "UInt", 1, "UInt", 0, "UInt", 0, "UInt", 0, "UInt", 0, "Str", name, "Ptr")          ; DEFAULT_CHARSET
+    of := DllCall("SelectObject", "Ptr", dc, "Ptr", hf, "Ptr")
+    buf := Buffer(128, 0)
+    DllCall("GetTextFace", "Ptr", dc, "Int", 64, "Ptr", buf)
+    DllCall("SelectObject", "Ptr", dc, "Ptr", of)
+    DllCall("DeleteObject", "Ptr", hf)
+    DllCall("ReleaseDC", "Ptr", 0, "Ptr", dc)
+    face := StrGet(buf)
+    return InStr(face, name) || (name = "Gulim" && InStr(face, "굴림"))
+}
+BGR(c) => ((c & 0xFF) << 16) | (c & 0xFF00) | ((c >> 16) & 0xFF)
+Hex6(c) => Format("{:06X}", c)
+
+FillRectColor(dc, prc, rgb) {
+    br := DllCall("CreateSolidBrush", "UInt", BGR(rgb), "Ptr")
+    DllCall("FillRect", "Ptr", dc, "Ptr", prc, "Ptr", br)
+    DllCall("DeleteObject", "Ptr", br)
+}
+
+; 흐린 글자 / 링크로 표시해 두면 ThemeControls 가 그 색으로 칠한다
+MarkDim(ctrl) {
+    App.dimCtl[ctrl.Hwnd] := true
+    return ctrl
+}
+MarkLink(ctrl) {
+    App.linkCtl[ctrl.Hwnd] := true
+    return ctrl
 }
 
 ; 짧은 안내를 창 아래쪽에 말풍선으로 잠깐 보여 준다 (원본처럼 상태 표시줄은 없음)
@@ -381,13 +769,31 @@ UpdateRunState() {
     }
 }
 
+; [정보] 창: 프로그램 / 개발자 정보.  G Macro 의 About 창처럼 왼쪽에 아이콘, 오른쪽에 정보.
 ShowAbout() {
-    win.Opt("+OwnDialogs")
-    MsgBox(APP_TITLE "  v" APP_VER "`n`n"
-        . "G Macro ver 2.0 의 화면과 사용 방식을 따라 만든 키보드/마우스 매크로입니다.`n"
-        . "(원본 G Macro 와 파일(.gmc) 호환은 되지 않습니다.)`n`n"
-        . HotkeyHelp() "`n`n"
-        . "AutoHotkey v" A_AhkVersion " 기반", "정보", "Iconi")
+    if !CanOpenDialog()
+        return
+    d := OpenDialog(APP_TITLE " 정보", "about")
+    c := {}
+    try d.AddPicture("x18 y18 w48 h48 Icon1", A_IsCompiled ? A_ScriptFullPath : A_ScriptDir "\YPMacro.ico")
+    d.SetFont("s13 bold")
+    d.AddText("x84 y14 w236", APP_TITLE "  v" APP_VER)
+    d.SetFont("s9 norm")
+    MarkDim(d.AddText("x84 y42 w236", "G Macro 방식의 키보드/마우스 매크로"))
+    d.AddText("x84 y70 w236", "개발자:  " APP_AUTHOR)
+    d.SetFont("underline")
+    lnk := MarkLink(d.AddText("x84 y90 w236", RegExReplace(APP_URL, "^https://")))
+    d.SetFont("norm")
+    lnk.OnEvent("Click", (*) => Run(APP_URL))
+    d.AddText("x84 y110 w236", "최종 수정일:  " APP_DATE)
+    d.AddText("x84 y130 w236", "라이선스:  MIT License")
+    d.AddText("x18 y158 w302 h1 0x10")                     ; 가로 구분선
+    MarkDim(d.AddText("x18 y168 w302", "단축키:  " HotkeyHelp()))
+    MarkDim(d.AddText("x18 y188 w302", "원작:  G Macro Second Edition (Cho han nam)"))
+    MarkDim(d.AddText("x18 y208 w302", "Copyright (c) 2026 " APP_AUTHOR "  ·  AHK v" A_AhkVersion))
+    c.btnOk := d.AddButton("x130 y238 w78 h26 Default", "확인")
+    c.btnOk.OnEvent("Click", (*) => CloseDialog(d))
+    ShowDialog(d, 338, 276)
 }
 
 ; ==============================================================================
@@ -481,7 +887,7 @@ ClearStopKeyState() {
 ; ==============================================================================
 OpenDialog(title, kind) {
     d := Gui("+Owner" win.Hwnd " -MinimizeBox -MaximizeBox", title)
-    d.SetFont("s9", "Malgun Gothic")
+    d.SetFont("s9", App.T ? App.T.font : ClassicFace())
     d.OnEvent("Close", (g) => CloseDialog(g))
     d.OnEvent("Escape", (g) => CloseDialog(g))
     win.Opt("+Disabled")
@@ -495,6 +901,10 @@ OpenDialog(title, kind) {
 }
 
 ShowDialog(d, w, h) {
+    if App.T
+        d.BackColor := Hex6(App.T.bg)
+    ThemeControls(d)
+    SetTitleBarColors(d.Hwnd)
     win.GetPos(&wx, &wy, &ww, &wh)
     x := Max(0, wx + (ww - w - 16) // 2)
     y := Max(0, wy + (wh - h - 38) // 2 + 10)
@@ -508,6 +918,10 @@ CloseDialog(d) {
     App.dlgKind := ""
     App.dlgCtl := ""
     App.dlgCleanup := ""
+    for hwnd in d                                           ; 테마용 표시 정리
+        for m in [App.defBtn, App.dimCtl, App.linkCtl]
+            if m.Has(hwnd)
+                m.Delete(hwnd)
     win.Opt("-Disabled")        ; 주인 창을 먼저 살린 뒤 닫아야 포커스가 다른 프로그램으로 안 튄다
     d.Destroy()
     try WinActivate("ahk_id " win.Hwnd)
@@ -574,8 +988,7 @@ ShowKeyDialog(editIdx := 0) {
             hold := (ev && ev.type = "KEY") ? ev.hold : App.keyHold
             newEv := { type: "KEY", key: k, mode: mode, hold: hold }
         }
-        CloseDialog(d)
-        CommitEvent(editIdx, newEv)
+        FinishEventDialog(d, editIdx, newEv)
     }
     c.rKey.OnEvent("Click", Sync)
     c.rText.OnEvent("Click", Sync)
@@ -639,11 +1052,11 @@ ShowMouseDialog(editIdx := 0, presetX := "", presetY := "") {
     c.radios := []
     for i, label in labels
         c.radios.Push(d.AddRadio(pos[i] (i = 1 ? " Group Checked" : ""), label))
-    d.AddText("x78 y18 w14", "X")
-    c.edX := d.AddEdit("x94 y14 w58", presetX)
-    d.AddText("x160 y18 w14", "Y")
-    c.edY := d.AddEdit("x176 y14 w58", presetY)
-    c.cbRel := d.AddCheckBox("x246 y16 w120", "상대 이동(게임 시점)")
+    d.AddText("x76 y18 w14", "X")
+    c.edX := d.AddEdit("x90 y14 w52", presetX)
+    d.AddText("x150 y18 w14", "Y")
+    c.edY := d.AddEdit("x164 y14 w52", presetY)
+    c.cbRel := d.AddCheckBox("x226 y16 w150", "상대 이동(게임 시점)")
     d.AddText("x14 y40 w352 h1 0x10")           ; 가로 구분선
     d.AddText("x14 y136 w352 h1 0x10")
     c.txPos := d.AddText("x14 y146 w352", "현재 커서 위치: -")
@@ -691,8 +1104,7 @@ ShowMouseDialog(editIdx := 0, presetX := "", presetY := "") {
             ch := MouseChoices()[sel]
             newEv := { type: "MOUSE", btn: ch[1], mode: ch[2] }
         }
-        CloseDialog(d)
-        CommitEvent(editIdx, newEv)
+        FinishEventDialog(d, editIdx, newEv)
     }
     for r in c.radios
         r.OnEvent("Click", Sync)
@@ -738,7 +1150,7 @@ ShowTimeDialog(editIdx := 0) {
     d.AddText("x14 y19 w60", "지연 시간")
     c.edSec := d.AddEdit("x78 y16 w80", ev ? SecText(ev.ms) : "1.000")
     d.AddText("x164 y19 w80", "초")
-    d.AddText("x14 y46 w230 cGray", "0.001초 ~ 3600초   (예: 0.5 = 0.5초)")
+    MarkDim(d.AddText("x14 y46 w230 cGray", "0.001초 ~ 3600초   (예: 0.5 = 0.5초)"))
     c.btnOk := d.AddButton("x82 y74 w78 h26 Default", "확인")
     c.btnCancel := d.AddButton("x166 y74 w78 h26", "취소")
     App.dlgCtl := c
@@ -747,8 +1159,11 @@ ShowTimeDialog(editIdx := 0) {
         ms := SecToMs(c.edSec.Value)
         if (ms < 1 || ms > 3600000)
             return Warn("0.001 ~ 3600 사이의 초 단위 숫자를 입력하세요.", d)
-        CloseDialog(d)
-        CommitEvent(editIdx, { type: "DELAY", ms: ms })
+        FinishEventDialog(d, editIdx, { type: "DELAY", ms: ms })
+        if (!editIdx && !App.closeAfterAdd) {
+            c.edSec.Focus()
+            SendMessage(0xB1, 0, -1, c.edSec)
+        }
     }
     c.btnOk.OnEvent("Click", OnOk)
     c.btnCancel.OnEvent("Click", (*) => CloseDialog(d))
@@ -839,12 +1254,14 @@ ShowEtcSettings() {
     d.AddText("x14 y166 w236 h1 0x10")
     c.cbFromSel := d.AddCheckBox("x14 y176 w236", "선택한 줄부터 시작")
     c.cbFromSel.Value := App.startFromSel
-    c.cbTop := d.AddCheckBox("x14 y200 w236", "창을 항상 위에 표시")
+    c.cbClose := d.AddCheckBox("x14 y200 w236", "이벤트 추가 후 창 닫기")
+    c.cbClose.Value := App.closeAfterAdd
+    c.cbTop := d.AddCheckBox("x14 y224 w236", "창을 항상 위에 표시")
     c.cbTop.Value := App.onTop
-    c.cbBeep := d.AddCheckBox("x14 y224 w236", "시작 / 중지 / 캡처 때 효과음")
+    c.cbBeep := d.AddCheckBox("x14 y248 w236", "시작 / 중지 / 캡처 때 효과음")
     c.cbBeep.Value := App.beep
-    c.btnOk := d.AddButton("x88 y256 w78 h26 Default", "확인")
-    c.btnCancel := d.AddButton("x172 y256 w78 h26", "취소")
+    c.btnOk := d.AddButton("x88 y280 w78 h26 Default", "확인")
+    c.btnCancel := d.AddButton("x172 y280 w78 h26", "취소")
     App.dlgCtl := c
     OnOk(*) {
         sd := SecToMs(c.edStart.Value)
@@ -857,6 +1274,7 @@ ShowEtcSettings() {
         App.keyHold      := Max(1, ToInt(c.edHold.Value, 50))
         App.sendMode     := c.ddSend.Text
         App.startFromSel := c.cbFromSel.Value = 1
+        App.closeAfterAdd := c.cbClose.Value = 1
         App.onTop        := c.cbTop.Value = 1
         App.beep         := c.cbBeep.Value = 1
         win.Opt((App.onTop ? "+" : "-") "AlwaysOnTop")
@@ -864,7 +1282,7 @@ ShowEtcSettings() {
     }
     c.btnOk.OnEvent("Click", OnOk)
     c.btnCancel.OnEvent("Click", (*) => CloseDialog(d))
-    ShowDialog(d, 264, 294)
+    ShowDialog(d, 264, 318)
 }
 
 ; ==============================================================================
@@ -884,6 +1302,16 @@ InList(v, list) {
         if (item = v)
             return true
     return false
+}
+
+; 이벤트 창의 [확인]: 목록에 넣고 창을 닫는다. "이벤트 추가 후 창 닫기"를 끄면 새로 추가할 때는 창을 열어 둔다.
+FinishEventDialog(d, editIdx, ev) {
+    keepOpen := !editIdx && !App.closeAfterAdd
+    if !keepOpen
+        CloseDialog(d)
+    CommitEvent(editIdx, ev)
+    if keepOpen
+        Notify("추가됨: " Describe(ev), 1200)
 }
 
 CommitEvent(idx, ev) {
@@ -1323,6 +1751,13 @@ SaveMacroFile(path, quiet := false) {
 LoadMacroFile(path, quiet := false) {
     if !FileExist(path)
         return false
+    if IsGmcFile(path)
+        return LoadGmcFile(path, quiet)
+    if RegExMatch(path, "i)\.gmc$") {
+        if !quiet
+            Warn("읽을 수 없는 G Macro 파일입니다.`n(G Macro Second Edition v2.0 으로 저장한 .gmc 파일만 읽을 수 있습니다.)")
+        return false
+    }
     try {
         txt := FileRead(path, "UTF-8")
     } catch as err {
@@ -1333,7 +1768,7 @@ LoadMacroFile(path, quiet := false) {
     lines := StrSplit(txt, "`n", "`r")
     if (lines.Length = 0 || Trim(lines[1]) != FILE_MAGIC) {
         if !quiet
-            Warn("이 프로그램으로 저장한 매크로 파일이 아닙니다.`n(G Macro 의 .gmc 파일은 읽을 수 없습니다.)")
+            Warn("매크로 파일이 아닙니다.`n(이 프로그램의 .gmx 파일과 G Macro 의 .gmc 파일을 읽을 수 있습니다.)")
         return false
     }
     lines.RemoveAt(1)
@@ -1362,7 +1797,116 @@ LoadDialog() {
     if !CanOpenDialog()
         return
     win.Opt("+OwnDialogs")
-    path := FileSelect(1, A_ScriptDir, "매크로 불러오기", "매크로 파일 (*.gmx)")
+    path := FileSelect(1, A_ScriptDir, "매크로 불러오기", "매크로 파일 (*.gmx; *.gmc)")
     if (path != "")
         LoadMacroFile(path)
+}
+
+; ------------------------------------------------------------------------------
+;  G Macro(.gmc) 파일 불러오기.  G Macro Second Edition v2.0 형식이며, 저장은 .gmx 로만 한다.
+;  구조: [UInt 줄 수 + 1] 다음에 79바이트짜리 줄이 이어진다. 첫 줄은 "시작"이고, 값에 시작 지연(초)이 들어 있다.
+;    +0  char[25] 이름(CP949)    +25 Int 키 코드(VK)    +29 Int 키 방식 (0 한번누름, 1 눌림, 2 뗌)
+;    +33 char[30] 목록 글자       +63 Int 종류           +67 Double 값 (지연 초 / 이동 X)    +75 Int 값2 (이동 Y)
+;  종류: 1 키보드  2 커서 이동  3 왼쪽 클릭  4 왼쪽 누른상태  5 뗀 상태  6 시간 지연  7 오른쪽 클릭  8 오른쪽 누른상태
+; ------------------------------------------------------------------------------
+IsGmcFile(path) {
+    try {
+        size := FileGetSize(path)
+        if (size < 83 || Mod(size - 4, 79) != 0)
+            return false
+        f := FileOpen(path, "r")
+        cnt := f.ReadUInt()
+        f.Close()
+        return cnt = (size - 4) // 79 + 1
+    }
+    return false
+}
+
+ReadGmc(path) {
+    buf := FileRead(path, "RAW")
+    n := (buf.Size - 4) // 79                    ; "시작" 줄 포함
+    kinds := []
+    loop n
+        kinds.Push(NumGet(buf, 4 + (A_Index - 1) * 79 + 63, "Int"))
+    evs := []
+    bad := 0
+    loop n - 1 {
+        i := A_Index + 1                         ; 1번 줄("시작")은 건너뛴다
+        p := 4 + (i - 1) * 79
+        switch kinds[i] {
+            case 1:
+                key := GetKeyName(Format("vk{:02X}", NumGet(buf, p + 25, "UInt") & 0xFF))
+                act := NumGet(buf, p + 29, "Int")
+                if (key = "" || act < 0 || act > 2) {
+                    bad += 1
+                    continue
+                }
+                evs.Push({ type: "KEY", key: key, mode: ["tap", "down", "up"][act + 1], hold: App.keyHold })
+            case 2: evs.Push({ type: "MOVE", x: Round(NumGet(buf, p + 67, "Double")), y: NumGet(buf, p + 75, "Int"), rel: false })
+            case 3: evs.Push({ type: "MOUSE", btn: "Left", mode: "click" })
+            case 4: evs.Push({ type: "MOUSE", btn: "Left", mode: "down" })
+            case 5: evs.Push({ type: "MOUSE", btn: GmcReleaseBtn(kinds, i), mode: "up" })
+            case 6:
+                sec := NumGet(buf, p + 67, "Double")
+                if !(sec >= 0 && sec <= 3600) {
+                    bad += 1
+                    continue
+                }
+                evs.Push({ type: "DELAY", ms: Round(sec * 1000) })
+            case 7: evs.Push({ type: "MOUSE", btn: "Right", mode: "click" })
+            case 8: evs.Push({ type: "MOUSE", btn: "Right", mode: "down" })
+            default: bad += 1
+        }
+    }
+    sd := NumGet(buf, 4 + 67, "Double")
+    return { events: evs, bad: bad, startDelay: (sd >= 0 && sd <= 3600) ? Round(sd * 1000) : -1 }
+}
+
+; G Macro 의 "뗀 상태"(종류 5)에는 어느 버튼인지가 없다.
+; 목록에서 바로 앞의 "누른상태"를 찾아(맨 앞을 지나면 뒤쪽까지 한 바퀴) 그 버튼을 뗀다. 없으면 왼쪽.
+GmcReleaseBtn(kinds, i) {
+    j := i
+    loop kinds.Length - 1 {
+        j := (j > 2) ? j - 1 : kinds.Length
+        if (kinds[j] = 8)
+            return "Right"
+        if (kinds[j] = 4)
+            return "Left"
+    }
+    return "Left"
+}
+
+LoadGmcFile(path, quiet := false) {
+    try {
+        r := ReadGmc(path)
+    } catch as err {
+        if !quiet
+            Warn("파일을 읽지 못했습니다: " err.Message)
+        return false
+    }
+    App.events := r.events
+    RefreshList(1)
+    if quiet
+        return true
+    msg := "G Macro 파일에서 이벤트 " r.events.Length "개를 불러왔습니다."
+    if r.bad
+        msg .= "`n(읽지 못한 줄 " r.bad "개는 건너뛰었습니다.)"
+    ; G Macro 는 이벤트마다 0.1초 간격(기본값)을 두고, 시작 지연은 파일에 저장한다. 같은 속도로 돌도록 맞출지 묻는다.
+    wantStart := (r.startDelay >= 0) ? r.startDelay : App.startDelay
+    diff := ""
+    if (App.gap != 100)
+        diff .= "`n  -  이벤트 간격 지연:  " SecText(App.gap) "초 → 0.100초 (G Macro 기본값)"
+    if (App.startDelay != wantStart)
+        diff .= "`n  -  이벤트 시작 시 지연:  " SecText(App.startDelay) "초 → " SecText(wantStart) "초 (이 파일의 값)"
+    if (diff = "") {
+        Notify(msg)
+        return true
+    }
+    win.Opt("+OwnDialogs")
+    if (MsgBox(msg "`n`nG Macro 와 같은 속도로 돌도록 설정도 바꿀까요?" diff, APP_TITLE, "YesNo Iconi") = "Yes") {
+        App.gap := 100
+        App.startDelay := wantStart
+        SaveSettings()
+    }
+    return true
 }
