@@ -2,11 +2,11 @@
 #SingleInstance Force
 ;@Ahk2Exe-SetName YPMacro
 ;@Ahk2Exe-SetDescription YPMacro
-;@Ahk2Exe-SetVersion 1.7.0.0
+;@Ahk2Exe-SetVersion 1.7.1.0
 ;@Ahk2Exe-SetMainIcon YPMacro.ico
 ;@Ahk2Exe-AddResource YPMFile.ico, 300
 ; ==============================================================================
-;  YPMacro  v1.7  -  키보드/마우스 매크로   (AutoHotkey v2 스크립트)
+;  YPMacro  v1.7.1  -  키보드/마우스 매크로   (AutoHotkey v2 스크립트)
 ;
 ;  메인 창은 G Macro ver 2.0 과 같은 배치:
 ;    - 메뉴:  파일 | 시작 | 설정 | 정보
@@ -36,7 +36,7 @@ SendMode("Event")               ; 기본 전송 방식. Input 은 보낼 때마�
 DllCall("winmm\timeBeginPeriod", "UInt", 1)     ; Sleep 정밀도를 1ms 단위로
 
 APP_TITLE  := "YPMacro"
-APP_VER    := "1.7"
+APP_VER    := "1.7.1"
 APP_DATE   := "2026-09-29"                              ; 정보 창의 최종 수정일
 APP_AUTHOR := "LEE YOUNGPYO"
 APP_URL    := "https://github.com/Archi142857/yp-macro"
@@ -49,7 +49,7 @@ App := { events: [], running: false, stopReq: false, capturing: false
        , hk: Map(), hkEnabled: false, stopKey: { vk: 0, mods: [] }, held: Map(), statusTick: 0
        , dlg: "", dlgKind: "", dlgCtl: "", dlgCleanup: ""
        , theme: "default", T: "", lang: "ko", defBtn: Map(), dimCtl: Map(), linkCtl: Map()
-       , glyphCtl: Map(), edgeCtl: Map(), lineCtl: Map()
+       , glyphCtl: Map(), borderCtl: Map()
        , pid: DllCall("GetCurrentProcessId", "UInt") }
 ui  := {}
 win := ""
@@ -483,9 +483,6 @@ BuildGui() {
     ; ---- 이벤트 목록 (첫 줄 "1. 시작" 은 고정).  테마 색으로 그리려고 줄을 직접 그린다 ----
     ; 0x100 = 높이를 줄 단위로 자르지 않음,  0x10 = 줄을 직접 그림(고정 높이),  0x40 = 글자 목록 유지
     ; 크기와 위치는 G Macro 창에서 잰 값 (창 안쪽 256 x 187)
-    ui.lbFrame := []                                        ; 다크 테마의 목록 테두리 (위 / 아래 / 왼쪽 / 오른쪽 1px)
-    loop 4
-        ui.lbFrame.Push(MarkLine(win.AddText("x0 y0 w1 h1 Hidden")))
     ui.lb := win.AddListBox("x14 y15 w158 h141 0x150")
     ui.lb.OnEvent("DoubleClick", (*) => EditRow(ui.lb.Value))
     ui.lb.OnEvent("ContextMenu", ListContextMenu)
@@ -687,12 +684,6 @@ ApplyTheme(key, init := false) {
     dy := T ? 23 : 0
     for item in ui.layout
         item[1].Move(item[2], item[3] + dy)
-    frameOn := T && T.frame
-    fy := 15 + dy                                           ; 목록 테두리: 목록(x14 w158 h141) 바로 바깥 1px
-    for i, box in [[13, fy - 1, 160, 1], [13, fy + 141, 160, 1], [13, fy - 1, 1, 143], [172, fy - 1, 1, 143]] {
-        ui.lbFrame[i].Move(box[1], box[2], box[3], box[4])
-        ui.lbFrame[i].Visible := frameOn
-    }
     SetTitleBarColors(win.Hwnd)
     if !init {
         win.Show("w256 h" MainHeight() " NA")
@@ -707,8 +698,8 @@ ThemeControls(g) {
     T := App.T
     face := (T && T.font != "") ? T.font : ClassicFace()   ; 해커 말고는 기본 테마와 같은 글꼴
     fg := T ? Hex6(T.text) : "Default"
-    flat := T && T.frame                                    ; 다크: 오목한 테두리 대신 1px 테두리
-    lines := [], framed := []
+    flat := T && T.frame                                    ; 다크: 오목한 테두리 위에 1px 테두리를 덧그림
+    lines := []
     for hwnd, ctrl in g {
         switch ctrl.Type {
             case "Button":
@@ -722,21 +713,15 @@ ThemeControls(g) {
                     DllCall("uxtheme\SetWindowTheme", "Ptr", hwnd, "Str", "DarkMode_Explorer", "Ptr", 0)
                 else
                     SetClassic(hwnd)                            ; 오목한 고전 테두리
-                SetFlatEdge(ctrl, flat)
+                SetFlatBorder(ctrl, flat)
                 if (ctrl = ui.lb)
                     UpdateListItemHeight()
-                else if flat
-                    framed.Push(ctrl)
             case "Radio", "CheckBox":
                 SetClassic(hwnd)                                ; 고전 모양이어야 글자색이 먹는다
                 ctrl.SetFont("c" fg, face)
                 ctrl.Opt(T ? "Background" Hex6(T.bg) : "BackgroundDefault")
                 SetGlyphDraw(ctrl, T && T.glyph)                ; 다크: 흰 동그라미·네모 대신 테마 색으로 직접 그림
             case "Text":
-                if App.lineCtl.Has(hwnd) {                      ; 테두리 선
-                    ctrl.Opt("Background" (T ? Hex6(T.HasProp("frameLine") ? T.frameLine : T.line) : "Default"))
-                    continue
-                }
                 if ((ControlGetStyle(hwnd) & 0x1F) = 0x10) {        ; 가로 구분선(SS_ETCHEDHORZ)은 아래에서 테마 색 선으로 바꾼다
                     lines.Push(ctrl)
                     continue
@@ -757,18 +742,15 @@ ThemeControls(g) {
                 else
                     SetClassic(hwnd)
                 if (ctrl.Type = "Edit") {
-                    SetFlatEdge(ctrl, flat)
-                    if flat {
-                        SendMessage(0xD3, 3, (4 << 16) | 4, hwnd)   ; EM_SETMARGINS: 좌우 4px
-                        framed.Push(ctrl)
-                    }
+                    SetFlatBorder(ctrl, flat)
+                    if flat
+                        SendMessage(0xD3, 3, (3 << 16) | 3, hwnd)   ; EM_SETMARGINS: 좌우 3px
                 }
             case "Hotkey":
                 ctrl.SetFont(, face)
                 if flat {                                       ; 단축키 칸은 윈도우가 늘 흰 바탕에 검은 글자로 그려서 다시 칠한다
                     SetHotkeyRecolor(ctrl)
-                    SetFlatEdge(ctrl, true)
-                    framed.Push(ctrl)
+                    SetFlatBorder(ctrl, true)
                 }
         }
     }
@@ -778,26 +760,52 @@ ThemeControls(g) {
             ctrl.Visible := false
             g.AddText("x" x " y" y " w" w " h1 Background" Hex6(T.line))
         }
-        for ctrl in framed {                                ; 다크: 입력칸 둘레 1px 테두리
-            ctrl.GetPos(&x, &y, &w, &h)
-            for box in [[x - 1, y - 1, w + 2, 1], [x - 1, y + h, w + 2, 1], [x - 1, y - 1, 1, h + 2], [x + w, y - 1, 1, h + 2]]
-                g.AddText("x" box[1] " y" box[2] " w" box[3] " h" box[4] " Background" Hex6(T.frameLine))
-        }
     }
 }
 
-; 목록·입력칸의 오목한 테두리(WS_EX_CLIENTEDGE)를 떼거나 되돌린다 (다크 테마는 1px 테두리를 따로 그린다)
-SetFlatEdge(ctrl, on) {
-    ex := DllCall(A_PtrSize = 8 ? "GetWindowLongPtr" : "GetWindowLong", "Ptr", ctrl.Hwnd, "Int", -20, "Ptr")
-    if (on && (ex & 0x200)) {
-        App.edgeCtl[ctrl.Hwnd] := true
-        ctrl.Opt("-E0x200")
-    } else if (!on && App.edgeCtl.Has(ctrl.Hwnd)) {
-        App.edgeCtl.Delete(ctrl.Hwnd)
-        ctrl.Opt("+E0x200")
-    } else
+; 다크: 목록·입력칸의 오목한 테두리(2px) 위에 1px 테마색 테두리 + 1px 바탕색을 덧그린다.
+; 테두리 스타일(WS_EX_CLIENTEDGE)은 건드리지 않는다: 윈도우에서는 한 번 뗀 테두리를 다시 붙일 수 없는 컨트롤이 있다 (v1.7 오류).
+SetFlatBorder(ctrl, on) {
+    static proc := CallbackCreate(FlatBorderProc, , 6)
+    hwnd := ctrl.Hwnd
+    if on {
+        if !App.borderCtl.Has(hwnd) {
+            if !DllCall("comctl32\SetWindowSubclass", "Ptr", hwnd, "Ptr", proc, "UPtr", 2, "UPtr", proc)
+                return
+            App.borderCtl[hwnd] := true
+        }
+    } else {
+        if !App.borderCtl.Has(hwnd)
+            return
+        DllCall("comctl32\RemoveWindowSubclass", "Ptr", hwnd, "Ptr", proc, "UPtr", 2)
+        App.borderCtl.Delete(hwnd)
+    }
+    DllCall("SetWindowPos", "Ptr", hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x37)   ; 테두리 다시 그리기
+}
+
+FlatBorderProc(hwnd, msg, wParam, lParam, id, proc) {
+    if (msg = 0x0082)                                       ; WM_NCDESTROY: 서브클래스 떼기
+        DllCall("comctl32\RemoveWindowSubclass", "Ptr", hwnd, "Ptr", proc, "UPtr", id)
+    r := DllCall("comctl32\DefSubclassProc", "Ptr", hwnd, "UInt", msg, "Ptr", wParam, "Ptr", lParam, "Ptr")
+    if (msg = 0x0085 && IsSet(App) && App.T && App.T.frame)     ; WM_NCPAINT: 원래 테두리를 그린 뒤 덮는다
+        PaintFlatBorder(hwnd)
+    return r
+}
+
+PaintFlatBorder(hwnd) {
+    T := App.T
+    wr := Buffer(16, 0), cr := Buffer(16, 0)
+    DllCall("GetWindowRect", "Ptr", hwnd, "Ptr", wr)
+    DllCall("GetClientRect", "Ptr", hwnd, "Ptr", cr)
+    DllCall("MapWindowPoints", "Ptr", hwnd, "Ptr", 0, "Ptr", cr, "UInt", 2)
+    b := NumGet(cr, 0, "Int") - NumGet(wr, 0, "Int")        ; 왼쪽 테두리 두께 (스크롤바는 오른쪽이라 왼쪽으로 잰다)
+    if (b < 1)
         return
-    DllCall("SetWindowPos", "Ptr", ctrl.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x37)   ; 테두리 다시 계산
+    w := NumGet(wr, 8, "Int") - NumGet(wr, 0, "Int"), h := NumGet(wr, 12, "Int") - NumGet(wr, 4, "Int")
+    dc := DllCall("GetWindowDC", "Ptr", hwnd, "Ptr")
+    loop Min(b, 2)
+        FrameXY(dc, A_Index - 1, A_Index - 1, w - A_Index + 1, h - A_Index + 1, (A_Index = 1) ? T.frameLine : T.panel)
+    DllCall("ReleaseDC", "Ptr", hwnd, "Ptr", dc)
 }
 
 ; 라디오·체크박스를 직접 그리게(NM_CUSTOMDRAW) 하거나 원래대로 되돌린다
@@ -934,12 +942,6 @@ HotkeyPaintProc(hwnd, msg, wParam, lParam, id, proc) {
         return 0
     }
     return DllCall("comctl32\DefSubclassProc", "Ptr", hwnd, "UInt", msg, "Ptr", wParam, "Ptr", lParam, "Ptr")
-}
-
-; 테두리 선으로 표시해 두면 ThemeControls 가 테두리 색으로 칠한다
-MarkLine(ctrl) {
-    App.lineCtl[ctrl.Hwnd] := true
-    return ctrl
 }
 
 ; 버튼을 테마 색으로 직접 그리게(BS_OWNERDRAW) 하거나 원래 버튼으로 되돌린다
@@ -1097,8 +1099,7 @@ DrawListItem(ctl, dc, prc, item, state) {
         buf := Buffer((len + 1) * 2, 0)
         SendMessage(0x0189, item, buf.Ptr, ctl)             ; LB_GETTEXT
         tr := Buffer(16)
-        padL := (T && T.frame) ? 6 : 3                      ; 다크: 테두리가 얇아서 글자를 조금 안쪽으로
-        NumPut("Int", NumGet(prc, 0, "Int") + padL, "Int", NumGet(prc, 4, "Int"), "Int", NumGet(prc, 8, "Int") - 2, "Int", NumGet(prc, 12, "Int"), tr)
+        NumPut("Int", NumGet(prc, 0, "Int") + 3, "Int", NumGet(prc, 4, "Int"), "Int", NumGet(prc, 8, "Int") - 2, "Int", NumGet(prc, 12, "Int"), tr)
         of := DllCall("SelectObject", "Ptr", dc, "Ptr", SendMessage(0x0031, 0, 0, ctl), "Ptr")
         DllCall("SetBkMode", "Ptr", dc, "Int", 1)
         DllCall("SetTextColor", "Ptr", dc, "UInt", fg)
@@ -1561,7 +1562,7 @@ CloseDialog(d) {
     App.dlgCtl := ""
     App.dlgCleanup := ""
     for hwnd, ctl in d                                      ; 테마용 표시 정리 (변수가 하나면 컨트롤 객체가 와서 두 개로 받는다)
-        for m in [App.defBtn, App.dimCtl, App.linkCtl, App.glyphCtl, App.edgeCtl, App.lineCtl]
+        for m in [App.defBtn, App.dimCtl, App.linkCtl, App.glyphCtl, App.borderCtl]
             if m.Has(hwnd)
                 m.Delete(hwnd)
     win.Opt("-Disabled")        ; 주인 창을 먼저 살린 뒤 닫아야 포커스가 다른 프로그램으로 안 튄다
