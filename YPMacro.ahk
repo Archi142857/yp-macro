@@ -2,11 +2,11 @@
 #SingleInstance Force
 ;@Ahk2Exe-SetName YPMacro
 ;@Ahk2Exe-SetDescription YPMacro
-;@Ahk2Exe-SetVersion 1.5.0.0
+;@Ahk2Exe-SetVersion 1.6.0.0
 ;@Ahk2Exe-SetMainIcon YPMacro.ico
 ;@Ahk2Exe-AddResource YPMFile.ico, 300
 ; ==============================================================================
-;  YPMacro  v1.5  -  키보드/마우스 매크로   (AutoHotkey v2 스크립트)
+;  YPMacro  v1.6  -  키보드/마우스 매크로   (AutoHotkey v2 스크립트)
 ;
 ;  메인 창은 G Macro ver 2.0 과 같은 배치:
 ;    - 메뉴:  파일 | 시작 | 설정 | 정보
@@ -15,8 +15,8 @@
 ;    - 추가 = 맨 끝에 붙임,  삽입 = 선택한 줄 바로 아래에 끼워 넣음
 ;    - 줄 더블클릭 = 수정,  우클릭 = 수정/지우기/위로/아래로,  Delete 키 = 지우기
 ;  기본 단축키:  F9 = 시작,  F10 = 중지,  F8 = 마우스 캡처(현재 좌표를 이동 이벤트로 추가)
-;  테마:  설정 → 테마 (기본 / 라이트 / 다크 / 해커).  G Macro 의 .gmc 파일은 [파일 → 불러오기]로 읽을 수 있다.
-;  저장 파일은 .ypm:  [동작], [동작], ... 형식의 글 파일이라 메모장으로 직접 써도 된다 (아래 "저장 / 불러오기" 참고).
+;  테마:  설정 → 테마 (기본 / 다크 / 라떼 / 해커).  G Macro 의 .gmc 파일은 [파일 → 불러오기]로 읽을 수 있다.
+;  저장 파일은 .ypm:  [key w down], [delay 0.5], ... 형식의 영어 글 파일이라 메모장으로 직접 써도 된다 (아래 "저장 / 불러오기" 참고).
 ;    - 중지 키는 실행 중이 아닐 때 눌러도 "매크로가 눌러 둔 키/버튼"을 전부 떼어 준다.
 ;  설정과 마지막 목록은 레지스트리(HKEY_CURRENT_USER\Software\YPMacro)에 저장한다. exe 옆에 파일을 만들지 않는다.
 ;  (v1.2 까지 쓰던 키 이름 "YP Macro" 에 값이 있으면 처음 실행 때 새 키로 옮기고 옛 키는 지운다.)
@@ -35,7 +35,7 @@ SendMode("Event")               ; 기본 전송 방식. Input 은 보낼 때마�
 DllCall("winmm\timeBeginPeriod", "UInt", 1)     ; Sleep 정밀도를 1ms 단위로
 
 APP_TITLE  := "YPMacro"
-APP_VER    := "1.5"
+APP_VER    := "1.6"
 APP_DATE   := "2026-09-29"                              ; 정보 창의 최종 수정일
 APP_AUTHOR := "LEE YOUNGPYO"
 APP_URL    := "https://github.com/Archi142857/yp-macro"
@@ -54,16 +54,16 @@ win := ""
 
 ; ---- 테마 (색은 0xRRGGBB) ----
 ;  "기본" 은 G Macro 처럼: 윈도우 고전 모양 컨트롤(입체 버튼, 오목한 목록) + 굴림 9pt + 시스템 색.
-;  라이트·다크는 기본과 글꼴·모양이 같고 색만 다르다 (style "bevel" = 입체 버튼을 테마 색으로 그림).
+;  다크·라떼는 기본과 글꼴·모양이 같고 색만 다르다 (style "bevel" = 입체 버튼을 테마 색으로 그림).
 ;  해커만 글꼴(VS Code 기본 글꼴 Consolas)과 모양(style "flat" = 테두리만 있는 납작한 버튼)이 다르다.
 ;  bg 창 배경 / menuBg 메뉴 줄 / panel 목록·입력칸 / text 글자 / dim 흐린 글자 / line 선
 ;  btn 버튼 면 / btnHi·btnLo·btnDk 입체 버튼의 밝은 선·그림자·진한 그림자 / btnLine 납작한 버튼 테두리
 ;  btnDown·btnDownText 누른 버튼(납작한 버튼) / btnText 버튼 글자 / sel·selText 목록에서 고른 줄
 ;  accent 링크·강조 / hover·hoverText 메뉴를 연 동안 / dark = 제목 표시줄·팝업 메뉴를 어둡게
-THEME_ORDER := ["default", "light", "dark", "hacker"]
+THEME_ORDER := ["default", "dark", "latte", "hacker"]
 THEMES := Map(
     "default", { name: "기본" },
-    "light",   { name: "라이트", font: "", style: "bevel", dark: false
+    "latte",   { name: "라떼", font: "", style: "bevel", dark: false
                , bg: 0xF2EBDD, menuBg: 0xFAF5EC, panel: 0xFFFCF6, text: 0x3B3228, dim: 0x8E8272, line: 0xD6C9B4
                , btn: 0xEBE2D1, btnHi: 0xFFFCF5, btnLo: 0xBBAB91, btnDk: 0x6F6150, btnText: 0x3B3228
                , btnLine: 0xBBAB91, btnDown: 0xE0D4BF, btnDownText: 0x3B3228
@@ -232,6 +232,8 @@ LoadSettings() {
         App.sendMode := "Event"
     App.closeAfterAdd := CfgRead("CloseAfterAdd", "1") = "1"
     App.theme        := CfgRead("Theme", "default")
+    if (App.theme = "light")                                ; v1.5 의 라이트 = 지금의 라떼
+        App.theme := "latte"
 }
 
 SaveSettings() {
@@ -915,29 +917,40 @@ UriEncode(s) {
 ; ==============================================================================
 ;  단축키
 ; ==============================================================================
-RegisterHotkeys(newStart, newStop, newPos, owner := "") {
+; quiet = 알림 창을 띄우지 않고 false 만 돌려준다 (까닭은 App.hkError).
+RegisterHotkeys(newStart, newStop, newPos, owner := "", quiet := false) {
+    HkFail(msg) {
+        App.hkError := msg
+        return quiet ? false : Warn(msg, owner)
+    }
     if (newStart = "" || newStop = "" || newPos = "")
-        return Warn("단축키가 비어 있습니다.", owner)
+        return HkFail("단축키가 비어 있습니다.")
     if (newStart = newStop || newStart = newPos || newStop = newPos)
-        return Warn("시작 / 중지 / 마우스 캡처 단축키가 서로 겹칩니다.", owner)
+        return HkFail("시작 / 중지 / 마우스 캡처 단축키가 서로 겹칩니다.")
 
     ; "*" = 다른 조합키가 눌려 있어도 반응.  이게 없으면 매크로가 Shift/Ctrl/Alt 를 누른 채일 때
     ;       중지 키가 "Shift+F10" 으로 보여서 반응하지 않고, 매크로가 멈추지 않는다.
     ; "$" = 훅 방식 (매크로가 보내는 키에는 반응하지 않도록)
     ; #HotIf 조건은 일부러 쓰지 않는다 - 훅이 키를 볼 때마다 메인 스레드에 물어보고 기다리는 구조라서
     ; 매크로가 바쁘면 시스템 키보드 입력이 통째로 멈추고 중지 키도 버려진다. 대신 설정 창이 열린 동안만 끈다.
-    for , oldKey in App.hk
-        try Hotkey("*$" oldKey, "Off")
-    App.hk := Map()
+    Unbind() {
+        for , oldKey in App.hk
+            try Hotkey("*$" oldKey, "Off")
+        App.hk := Map()
+    }
+    Bind(s, p, c) {
+        Hotkey("*$" s, (*) => StartMacro(false), "On"), App.hk["start"] := s
+        Hotkey("*$" p, (*) => StopMacro(), "On"),       App.hk["stop"] := p
+        Hotkey("*$" c, (*) => CapturePos(), "On"),      App.hk["pos"] := c
+    }
+    Unbind()
     try {
-        Hotkey("*$" newStart, (*) => StartMacro(false), "On")
-        App.hk["start"] := newStart
-        Hotkey("*$" newStop, (*) => StopMacro(), "On")
-        App.hk["stop"] := newStop
-        Hotkey("*$" newPos, (*) => CapturePos(), "On")
-        App.hk["pos"] := newPos
+        Bind(newStart, newStop, newPos)
     } catch as err {
-        return Warn("단축키 등록 실패: " err.Message, owner)
+        Unbind()                                            ; 쓰던 단축키로 되돌린다
+        if (App.hkStart != "" && (App.hkStart != newStart || App.hkStop != newStop || App.hkPos != newPos))
+            try Bind(App.hkStart, App.hkStop, App.hkPos)
+        return HkFail("단축키 등록 실패: " err.Message)
     }
     App.hkEnabled := true
 
@@ -1851,13 +1864,16 @@ LoadLastList() {
 }
 
 ; ---- .ypm 매크로 파일:  [동작], [동작], ...   (UTF-8 글 파일. 메모장으로 직접 써도 된다) ----
-;  [ ] 하나가 동작 하나이고 쉼표로 구분한다. 대괄호 밖의 글(줄바꿈, 설명)은 무시한다.
-;  [키 w]  [키 w 누름]  [키 w 뗌]  [키 Ctrl+C]  [문장 안녕하세요]
-;  [왼쪽 클릭]  [오른쪽 더블클릭]  [왼쪽 누름]  [왼쪽 뗌]  [가운데 클릭]  [휠 위]  [휠 아래]
-;  [이동 800 465]  [상대이동 10 -5]  [지연 0.5]  [지연 500ms]
-;  대괄호 안에서 ] 는 \], \ 는 \\ 로 쓴다 (문장에 넣을 때만 필요).
+;  [ ] 하나가 동작 하나이고 쉼표로 구분한다. 대괄호 밖의 글(줄바꿈, 설명)은 무시한다. 파일 내용은 영어로 쓴다.
+;  맨 앞 설정 한 줄(없어도 됨):
+;    [settings theme=dark start=F9 stop=F10 capture=F8 repeat=on loops=0 startdelay=0 interval=0 keyhold=50ms mode=event]
+;  [key w]  [key w down]  [key w up]  [key a 80ms]  [key ctrl+c]  [text Hello]
+;  [left click]  [right doubleclick]  [left down]  [left up]  [middle click]  [wheel up]  [wheel down]
+;  [move 800 465]  [moveby 10 -5]  [delay 0.5]  [delay 500ms]
+;  v1.5 에서 저장한 한국어 파일([키 w 누름], [지연 0.5] ...)도 그대로 읽는다.
+;  대괄호 안에서 ] 는 \], \ 는 \\ 로 쓴다 (text 에 넣을 때만 필요).
 SaveMacroFile(path, quiet := false) {
-    parts := []
+    parts := [YpmSettingsLine()]
     for ev in App.events
         if ((a := YpmAction(ev)) != "")
             parts.Push(a)
@@ -1876,34 +1892,43 @@ SaveMacroFile(path, quiet := false) {
     return true
 }
 
+; 지금 설정 → "[settings ...]" 한 줄
+YpmSettingsLine() {
+    return "[settings theme=" App.theme " start=" HotkeyLabel(App.hkStart) " stop=" HotkeyLabel(App.hkStop)
+         . " capture=" HotkeyLabel(App.hkPos) " repeat=" (ui.cbRepeat.Value ? "on" : "off") " loops=" App.repeatCnt
+         . " startdelay=" SecShort(App.startDelay) " interval=" SecShort(App.gap) " keyhold=" App.keyHold "ms"
+         . " mode=" StrLower(App.sendMode) "]"
+}
+
+SecShort(ms) => RTrim(RTrim(Format("{:.3f}", ms / 1000), "0"), ".")
+
 ; 이벤트 하나 → 동작 글자 하나 "[...]"
 YpmAction(ev) {
     switch ev.type {
         case "KEY":
-            s := "키 " ev.key (ev.mode = "down" ? " 누름" : ev.mode = "up" ? " 뗌" : "")
+            s := "key " ev.key (ev.mode = "down" ? " down" : ev.mode = "up" ? " up" : "")
             if (ev.mode = "tap" && ev.hold != App.keyHold)
                 s .= " " ev.hold "ms"
         case "TEXT":
-            s := "문장 " ev.text
+            s := "text " ev.text
         case "MOUSE":
             if InStr(ev.btn, "Wheel")
-                s := "휠 " (ev.btn = "WheelUp" ? "위" : "아래")
+                s := "wheel " (ev.btn = "WheelUp" ? "up" : "down")
             else
-                s := (ev.btn = "Left" ? "왼쪽" : ev.btn = "Right" ? "오른쪽" : "가운데") " "
-                   . (ev.mode = "click" ? "클릭" : ev.mode = "double" ? "더블클릭" : ev.mode = "down" ? "누름" : "뗌")
+                s := StrLower(ev.btn) " " (ev.mode = "double" ? "doubleclick" : ev.mode)
         case "MOVE":
-            s := (ev.rel ? "상대이동 " : "이동 ") ev.x " " ev.y
+            s := (ev.rel ? "moveby " : "move ") ev.x " " ev.y
         case "DELAY":
-            s := "지연 " RTrim(RTrim(Format("{:.3f}", ev.ms / 1000), "0"), ".")
+            s := "delay " SecShort(ev.ms)
         default:
             return ""
     }
     return "[" StrReplace(StrReplace(s, "\", "\\"), "]", "\]") "]"
 }
 
-; .ypm 글 → { events, bad: [해석하지 못한 동작 글자들] }
+; .ypm 글 → { events, bad: [해석하지 못한 동작 글자들], settings: Map, badSettings: [잘못된 설정] }
 ParseYpm(txt) {
-    evs := [], bad := []
+    evs := [], bad := [], settings := Map(), badSettings := []
     len := StrLen(txt), i := 1
     while (i <= len) {
         if (SubStr(txt, i, 1) != "[") {                     ; 대괄호 밖은 건너뛴다
@@ -1929,49 +1954,161 @@ ParseYpm(txt) {
             bad.Push("[" SubStr(body, 1, 30) "  (닫는 ] 없음)")
             break
         }
-        r := ParseYpmAction(body)
-        if r {
+        if RegExMatch(body, "is)^\s*(settings?|설정)(\s+(.*))?$", &sm)
+            ParseYpmSettings(sm[3], settings, badSettings)
+        else if (r := ParseYpmAction(body)) {
             for ev in r
                 evs.Push(ev)
         } else
             bad.Push("[" body "]")
         i := j + 1
     }
-    return { events: evs, bad: bad }
+    return { events: evs, bad: bad, settings: settings, badSettings: badSettings }
 }
 
-; 동작 하나 "키 w 누름" → 이벤트 배열 (조합키는 여러 개), 알 수 없으면 0
+; "theme=dark start=F9 ..." → settings 에 알맞은 값으로 넣는다. 잘못된 항목은 bad 에.
+ParseYpmSettings(text, settings, bad) {
+    for tok in StrSplit(Trim(text), [" ", "`t", "`r", "`n", ","]) {
+        if (tok = "")
+            continue
+        if !RegExMatch(tok, "^([^=:]+)[=:](.*)$", &kv) {
+            bad.Push(tok)
+            continue
+        }
+        k := StrLower(Trim(kv[1])), v := Trim(kv[2]), lv := StrLower(v), val := ""
+        switch k {
+            case "theme":
+                val := ThemeKeyFrom(v)
+            case "start", "stop", "capture":
+                val := HotkeyFromLabel(v)
+            case "repeat":
+                val := (lv = "on" || lv = "true" || lv = "1" || lv = "yes") ? 1 : (lv = "off" || lv = "false" || lv = "0" || lv = "no") ? 0 : ""
+            case "loops":
+                val := IsInteger(v) && Integer(v) >= 0 ? Integer(v) : ""
+            case "startdelay", "interval":
+                val := DurationMs(v, 1000)
+            case "keyhold":
+                val := DurationMs(v, 1)
+                if (val = 0)
+                    val := ""
+            case "mode":
+                val := (lv = "event") ? "Event" : (lv = "input") ? "Input" : ""
+            default:
+                bad.Push(tok "  (알 수 없는 설정)")
+                continue
+        }
+        if (val = "")
+            bad.Push(tok "  (잘못된 값)")
+        else
+            settings[k] := val
+    }
+}
+
+; "0.5" / "0.5s" / "500ms" → ms.  숫자만 있으면 unit(1000 = 초, 1 = ms)으로 본다. 잘못되면 "".
+DurationMs(v, unit) {
+    if !RegExMatch(v, "i)^(\d+(?:\.\d+)?)\s*(ms|s|초)?$", &n)
+        return ""
+    ms := (StrLower(n[2]) = "ms") ? Round(n[1]) : (n[2] != "") ? Round(n[1] * 1000) : Round(n[1] * unit)
+    return (ms <= 3600000) ? ms : ""
+}
+
+; 테마 이름(영어 키 / 한글 이름) → 테마 키.  v1.5 의 light 는 라떼.
+ThemeKeyFrom(v) {
+    lv := StrLower(v)
+    if (lv = "light")
+        return "latte"
+    for key in THEME_ORDER
+        if (lv = key || v = THEMES[key].name)
+            return key
+    return ""
+}
+
+; "Ctrl+Alt+F9" → "^!F9".  키 하나("F9")나 AHK 형식("^+F9")도 받는다. 잘못되면 "".
+HotkeyFromLabel(s) {
+    s := Trim(s)
+    if (s = "")
+        return ""
+    parts := StrSplit(s, "+")
+    if (parts.Length >= 2) {                                ; "Ctrl+Alt+F9"
+        key := parts.Pop()
+        mods := "", ok := (key != "")
+        for m in parts {
+            switch StrLower(m) {
+                case "ctrl", "control": mods .= "^"
+                case "alt":             mods .= "!"
+                case "shift":           mods .= "+"
+                case "win":             mods .= "#"
+                default:                ok := false
+            }
+        }
+        if (ok && GetKeyName(key) != "")
+            return mods key
+    }
+    k := RegExReplace(s, "^[\^!+#]+")                       ; "F9", "^+F9"
+    return (k != "" && GetKeyName(k) != "") ? s : ""
+}
+
+; 파일에 들어 있던 설정을 적용한다. 적용하지 못한 것을 글로 돌려준다.
+ApplyYpmSettings(st, &applied := 0) {
+    problems := "", applied := st.Count
+    if (st.Has("start") || st.Has("stop") || st.Has("capture")) {
+        ns := st.Has("start") ? st["start"] : App.hkStart
+        np := st.Has("stop") ? st["stop"] : App.hkStop
+        nc := st.Has("capture") ? st["capture"] : App.hkPos
+        if (ns != App.hkStart || np != App.hkStop || nc != App.hkPos) && !RegisterHotkeys(ns, np, nc, "", true) {
+            problems .= "`n    단축키: " RTrim(App.hkError, ".") " (지금 단축키를 그대로 씁니다)"
+            applied -= st.Has("start") + st.Has("stop") + st.Has("capture")
+        }
+    }
+    if st.Has("repeat")
+        ui.cbRepeat.Value := App.repeatOn := st["repeat"]
+    if st.Has("loops")
+        App.repeatCnt := st["loops"]
+    if st.Has("startdelay")
+        App.startDelay := st["startdelay"]
+    if st.Has("interval")
+        App.gap := st["interval"]
+    if st.Has("keyhold")
+        App.keyHold := st["keyhold"]
+    if st.Has("mode")
+        App.sendMode := st["mode"]
+    if (st.Has("theme") && st["theme"] != App.theme)
+        ApplyTheme(st["theme"])
+    SaveSettings()
+    return problems
+}
+
+; 동작 하나 "key w down" → 이벤트 배열 (조합키는 여러 개), 알 수 없으면 0.  v1.5 의 한국어 동작도 받는다.
 ParseYpmAction(body) {
-    static btns := Map("왼쪽", "Left", "left", "Left", "오른쪽", "Right", "right", "Right", "가운데", "Middle", "middle", "Middle")
-    static acts := Map("클릭", "click", "click", "click", "더블클릭", "double", "double", "double"
-                     , "누름", "down", "down", "down", "뗌", "up", "up", "up")
+    static btns := Map("left", "Left", "right", "Right", "middle", "Middle", "왼쪽", "Left", "오른쪽", "Right", "가운데", "Middle")
+    static acts := Map("click", "click", "doubleclick", "double", "double", "double", "dblclick", "double", "down", "down", "up", "up"
+                     , "클릭", "click", "더블클릭", "double", "누름", "down", "뗌", "up")
     if !RegExMatch(Trim(body, " `t`r`n"), "s)^(\S+)\s*(.*)$", &m)
         return 0
     kw := StrLower(m[1]), rest := Trim(m[2], " `t`r`n")
     switch kw {
-        case "키", "key":
+        case "key", "키":
             return YpmKey(rest)
-        case "문장", "text":
+        case "text", "문장":
             return (rest != "") ? [{ type: "TEXT", text: RegExReplace(rest, "[\t\r\n]+", " ") }] : 0
-        case "왼쪽", "left", "오른쪽", "right", "가운데", "middle":
-            a := StrLower(rest = "" ? "클릭" : rest)
+        case "left", "right", "middle", "왼쪽", "오른쪽", "가운데":
+            a := StrLower(rest = "" ? "click" : rest)
             return acts.Has(a) ? [{ type: "MOUSE", btn: btns[kw], mode: acts[a] }] : 0
-        case "휠", "wheel":
+        case "wheel", "휠":
             a := StrLower(rest)
-            if (a = "위" || a = "up")
+            if (a = "up" || a = "위")
                 return [{ type: "MOUSE", btn: "WheelUp", mode: "click" }]
-            if (a = "아래" || a = "down")
+            if (a = "down" || a = "아래")
                 return [{ type: "MOUSE", btn: "WheelDown", mode: "click" }]
             return 0
-        case "이동", "move", "상대이동", "moverel":
-            if !RegExMatch(rest, "i)^(-?\d+)\s*[ ,]\s*(-?\d+)\s*(상대|rel)?$", &n)
+        case "move", "moveby", "moverel", "이동", "상대이동":
+            if !RegExMatch(rest, "i)^(-?\d+)\s*[ ,]\s*(-?\d+)\s*(rel|상대)?$", &n)
                 return 0
-            return [{ type: "MOVE", x: Integer(n[1]), y: Integer(n[2]), rel: (kw = "상대이동" || kw = "moverel" || n[3] != "") }]
-        case "지연", "delay", "wait", "대기":
-            if !RegExMatch(rest, "i)^(\d+(?:\.\d+)?)\s*(ms|초|s)?$", &n)
-                return 0
-            ms := (StrLower(n[2]) = "ms") ? Round(n[1]) : Round(n[1] * 1000)
-            return (ms <= 3600000) ? [{ type: "DELAY", ms: ms }] : 0
+            return [{ type: "MOVE", x: Integer(n[1]), y: Integer(n[2])
+                    , rel: (kw = "moveby" || kw = "moverel" || kw = "상대이동" || n[3] != "") }]
+        case "delay", "wait", "지연", "대기":
+            ms := DurationMs(rest, 1000)
+            return (ms != "") ? [{ type: "DELAY", ms: ms }] : 0
     }
     return 0
 }
@@ -2061,7 +2198,7 @@ LoadMacroFile(path, quiet := false) {
     } else {
         r := ParseYpm(txt)
         badList := r.bad
-        if (r.events.Length = 0 && badList.Length = 0 && !RegExMatch(path, "i)\.ypm$")) {
+        if (r.events.Length = 0 && badList.Length = 0 && !r.settings.Count && !RegExMatch(path, "i)\.ypm$")) {
             if !quiet
                 Warn("매크로 파일이 아닙니다.`n(.ypm, 예전 .gmx, G Macro 의 .gmc 파일을 읽을 수 있습니다.)")
             return false
@@ -2069,28 +2206,44 @@ LoadMacroFile(path, quiet := false) {
     }
     App.events := r.events
     RefreshList(1)
+    applied := 0
+    problems := (r.HasProp("settings") && r.settings.Count) ? ApplyYpmSettings(r.settings, &applied) : ""
+    if r.HasProp("badSettings")
+        problems .= ShortList(r.badSettings)
     if quiet
         return true
-    if badList.Length {
-        list := ""
-        for i, b in badList
-            if (i <= 5)
-                list .= "`n    " b
-        if (badList.Length > 5)
-            list .= "`n    … 외 " (badList.Length - 5) "개"
-        win.Opt("+OwnDialogs")
-        MsgBox("동작 " r.events.Length "개를 불러왔고, 알아볼 수 없는 동작 " badList.Length "개는 건너뛰었습니다." list
-            . "`n`n쓰는 법 예:  [키 w 누름], [왼쪽 클릭], [이동 800 465], [지연 0.5], [문장 안녕]", APP_TITLE, "Icon!")
-    } else
-        Notify("불러옴: 동작 " r.events.Length "개")
+    if (problems = "" && !badList.Length) {
+        Notify("불러옴: 동작 " r.events.Length "개" (applied ? " · 설정도 적용" : ""))
+        return true
+    }
+    ; 알릴 것이 있으면 창 하나에 모아서 보여 준다
+    msg := "동작 " r.events.Length "개를 불러왔습니다." (applied ? " 파일에 저장된 설정도 적용했습니다." : "")
+    if (problems != "")
+        msg .= "`n`n적용하지 못한 설정:" problems
+    if badList.Length
+        msg .= "`n`n알아볼 수 없어서 건너뛴 동작 " badList.Length "개:" ShortList(badList)
+             . "`n`n쓰는 법 예:  [key w down], [left click], [move 800 465], [delay 0.5], [text Hello]"
+    win.Opt("+OwnDialogs")
+    MsgBox(msg, APP_TITLE, "Icon!")
     return true
+}
+
+; 목록 → 들여 쓴 여러 줄 (max 개까지만)
+ShortList(list, max := 5) {
+    out := ""
+    for i, b in list
+        if (i <= max)
+            out .= "`n    " b
+    if (list.Length > max)
+        out .= "`n    … 외 " (list.Length - max) "개"
+    return out
 }
 
 SaveDialog() {
     if !CanOpenDialog()
         return
     win.Opt("+OwnDialogs")
-    path := FileSelect("S16", A_ScriptDir "\macro.ypm", "매크로 저장", "YPMacro 매크로 (*.ypm)")
+    path := FileSelect("S16", A_ScriptDir "\macro.ypm", "매크로 저장", "YPMacro Script (*.ypm)")
     if (path = "")
         return
     if !RegExMatch(path, "i)\.ypm$")
@@ -2105,20 +2258,26 @@ SaveDialog() {
 ; 처음 저장할 때 연결하고, 그 뒤로는 실행할 때마다 연결된 경로를 지금 실행 중인 exe 로 맞춘다 (새 버전으로 바꿨을 때).
 RegisterYpmType(first := false) {
     base := "HKEY_CURRENT_USER\Software\Classes\"
+    name := "YPMacro Script"                                  ; 파일 형식 이름 (속성 창, 탐색기 "유형")
     cmd := A_IsCompiled ? '"' A_ScriptFullPath '" "%1"' : '"' A_AhkPath '" "' A_ScriptFullPath '" "%1"'
     icon := A_IsCompiled ? A_ScriptFullPath ",-300" : A_ScriptDir "\YPMFile.ico"
-    try cur := RegRead(base "YPMacro.Macro\shell\open\command")
-    catch
-        cur := ""
-    if ((cur = "" && !first) || cur = cmd)
+    cur := RegReadOr(base "YPMacro.Macro\shell\open\command")
+    if (cur = "" && !first)                                 ; 아직 한 번도 저장하지 않음
+        return
+    if (cur = cmd && RegReadOr(base "YPMacro.Macro") = name && RegReadOr(base "YPMacro.Macro\DefaultIcon") = icon)
         return
     try {
         RegWrite("YPMacro.Macro", "REG_SZ", base ".ypm")
-        RegWrite("YPMacro 매크로", "REG_SZ", base "YPMacro.Macro")
+        RegWrite(name, "REG_SZ", base "YPMacro.Macro")
         RegWrite(icon, "REG_SZ", base "YPMacro.Macro\DefaultIcon")
         RegWrite(cmd, "REG_SZ", base "YPMacro.Macro\shell\open\command")
         DllCall("shell32\SHChangeNotify", "Int", 0x08000000, "UInt", 0, "Ptr", 0, "Ptr", 0)   ; 탐색기 아이콘 새로 고침
     }
+}
+
+RegReadOr(key, value := "") {
+    try return RegRead(key, value)
+    return ""
 }
 
 OnDropFiles(g, ctrl, files, *) {                            ; 창에 파일을 끌어다 놓으면 불러오기

@@ -1,118 +1,159 @@
 # YPMacro: G Macro(지매크로) 호환 매크로
 
-**G Macro(지매크로, G매크로)와 같은 화면과 사용법**으로 쓰는 무료 Windows 키보드/마우스 매크로입니다.
-**G Macro로 만든 `.gmc` 매크로 파일을 그대로 불러올 수 있어서**, 쓰던 매크로를 처음부터 다시 만들 필요가 없습니다.
+[한국어](#한국어) · [English](#english)
 
-- G Macro Second Edition v2.0의 `.gmc` 파일 불러오기
-- G Macro와 같은 화면 배치: 이벤트 목록, 키보드 / 마우스 / 시간 버튼, 추가 / 삽입, 반복
-- Windows 10 / 11 64비트, 설치 없이 exe 하나로 실행
-- 한글이 깨지지 않음: 새 윈도우에서 G Macro 글자가 `◆◆◆`처럼 깨져 보이는 환경에서도 정상으로 보입니다
-- 매크로 파일(`.ypm`)은 `[키 w 누름], [지연 0.5]`처럼 읽기 쉬운 글이라 메모장으로 직접 써도 됩니다
-- 테마 4종: 기본(G Macro 모양) / 라이트(베이지) / 다크 / 해커
+## 한국어
 
-> G Macro Second Edition(Cho han nam)의 화면과 사용 방식을 참고해 AutoHotkey v2로 새로 만든 별도 프로그램이며, 원작과는 관계가 없습니다. `.gmc` 파일은 불러오기만 되고, 저장은 YPMacro 형식(`.ypm`)으로 합니다.
+G Macro(지매크로, G매크로)와 같은 화면으로 쓰는 무료 Windows 키보드·마우스 매크로입니다.
+G Macro로 만든 `.gmc` 파일을 그대로 불러옵니다.
 
-## 다운로드
+### 기능
 
-[Releases](../../releases)에서 최신 버전의 exe 파일(예: `YPMacro-v1.5.exe`)을 받아 실행하면 됩니다. 설치는 필요 없습니다.
+- **G Macro `.gmc` 불러오기**: 쓰던 매크로를 다시 만들 필요 없음
+- **G Macro와 같은 화면**: 이벤트 목록 + 키보드 / 마우스 / 시간 버튼
+- **메모장으로 쓰는 매크로 파일**: `[key w down], [delay 0.5]` 형식의 `.ypm`
+- **설정도 파일에 저장**: 테마, 단축키, 반복, 지연
+- **테마 4종**: 기본(G Macro 모양) / 다크 / 라떼 / 해커
+- **설치 없이 exe 하나**, 한글 깨짐 없음
 
-- Windows 10 / 11 (64비트)
-- 처음 실행할 때 "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행**을 누르세요. 코드 서명이 없는 개인 제작 프로그램이라 뜨는 경고입니다.
+### 다운로드
 
-## 사용법
+[Releases](../../releases)에서 최신 exe를 받아 실행합니다. (Windows 10 / 11, 64비트)
 
-1. 오른쪽 **키보드 / 마우스 / 시간** 버튼으로 이벤트를 추가합니다.
-2. **F9**로 시작하고 **F10**으로 중지합니다.
-3. 반복하려면 아래쪽 **반복**을 체크합니다. 반복 횟수는 `설정 → 기타 설정`에서 정합니다 (0 = 무한).
+"Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행**을 누르세요.
 
-| 단축키 | 기능 |
+### 사용법
+
+| 할 일 | 방법 |
 |---|---|
-| F9 | 시작 |
-| F10 | 중지. 매크로가 눌러 둔 키와 마우스 버튼을 모두 뗍니다 (실행 중이 아닐 때 눌러도 동작) |
-| F8 | 마우스 캡처. 현재 커서 위치를 이동 이벤트로 추가합니다 |
+| 이벤트 추가 | **키보드 / 마우스 / 시간** 버튼 |
+| 중간에 끼워 넣기 | **삽입**을 고른 뒤 추가 (선택한 줄 아래로) |
+| 시작 / 중지 | **F9** / **F10** |
+| 커서 위치 추가 | **F8** |
+| 반복 | **반복** 체크 (횟수: `설정 → 기타 설정`, 0 = 무한) |
+| 수정 / 지우기 | 줄 더블클릭 / Delete 키 (우클릭 메뉴도 있음) |
+| 저장 / 불러오기 | `파일` 메뉴, 창에 끌어다 놓기, `.ypm` 더블클릭 |
+| 단축키·테마 바꾸기 | `설정` 메뉴 |
 
-단축키는 `설정 → 키보드 설정 / 마우스 설정`에서 바꿀 수 있습니다.
-메뉴의 `시작`으로 실행하면 대상 창으로 넘어갈 수 있도록 3초 뒤에 시작합니다.
+G Macro 파일은 `파일 → 불러오기`에서 `.gmc`를 고르면 됩니다. G Macro와 같은 속도로 맞출지 물으면 **예**를 누르세요.
 
-### G Macro에서 옮겨 오기
+### 매크로 파일(.ypm) 쓰는 법
 
-1. `파일 → 불러오기`에서 G Macro로 저장한 `.gmc` 파일을 고릅니다.
-2. "G Macro와 같은 속도로 돌도록 설정도 바꿀까요?"라고 물으면 **예**를 누릅니다. G Macro 기본값인 이벤트 간격 0.1초와, 파일에 저장된 시작 지연이 적용됩니다.
-3. 시작 / 중지 단축키는 YPMacro 기본값(F9 / F10)입니다. `설정 → 키보드 설정`에서 바꿀 수 있습니다.
-
-키보드 한번누름·누른상태·뗀 상태, 커서 이동, 왼쪽·오른쪽 클릭과 누른 상태, 뗀 상태, 시간 지연을 모두 읽습니다.
-
-### 이벤트 종류
-
-- **키보드**: 키 입력(누르고 떼기 / 누른 상태 / 뗀 상태), 문장 입력
-- **마우스**: 커서 이동(화면 좌표 / 상대 이동), 왼쪽·오른쪽 클릭 / 누른 상태 / 뗀 상태, 가운데 클릭, 휠 위로·아래로
-- **시간**: 지연 0.001초 ~ 3600초
-
-### 목록 편집
-
-- **추가**: 맨 끝에 붙입니다. **삽입**: 선택한 줄 바로 아래에 끼워 넣습니다.
-- 줄 더블클릭: 수정 / 우클릭: 수정·지우기·위로·아래로·모두 지우기 / Delete 키: 지우기
-- `파일 → 저장`은 `.ypm` 파일로 저장합니다. `파일 → 불러오기`는 `.ypm`, 예전 버전의 `.gmx`, G Macro의 `.gmc`를 읽습니다.
-- 창에 파일을 끌어다 놓아도 불러옵니다. `.ypm` 파일을 한 번 저장하고 나면 탐색기에서 메모지 아이콘으로 보이고, 더블클릭하면 YPMacro로 열립니다.
-- G Macro `.gmc` 파일을 불러올 때는 G Macro와 같은 속도로 돌도록 이벤트 간격(0.1초)과 시작 지연을 맞출지 물어봅니다.
-
-### 매크로 파일(.ypm) 직접 쓰기
-
-`.ypm`은 글 파일이라 메모장으로 직접 쓰거나 고칠 수 있습니다. `[ ]` 하나가 동작 하나이고, 동작 사이는 쉼표로 나눕니다. 한 줄에 몰아 써도 되고 줄을 나눠도 되며, 대괄호 밖에 쓴 글은 무시되니 설명을 적어 둬도 됩니다.
+동작 하나를 `[ ]` 하나에 쓰고 쉼표로 이어 쓰면 됩니다. 대괄호 밖의 글은 무시됩니다.
 
 ```
-사냥터 자동 공격
-[키 w 누름],
-[왼쪽 누름],
-[지연 0.5],
-[이동 800 465],
-[키 스페이스], [문장 안녕하세요]
+[settings theme=dark start=F9 stop=F10 repeat=on],
+[key w down], [left click], [delay 0.5], [move 800 465], [key w up]
 ```
 
-| 동작 | 쓰는 법 |
+| 동작 | 예 |
 |---|---|
-| 키 누르고 떼기 | `[키 a]`, `[키 스페이스]`, `[키 F1]`, `[키 Ctrl+C]` |
-| 키 누른 상태 / 뗀 상태 | `[키 w 누름]`, `[키 w 뗌]` |
-| 문장 입력 | `[문장 안녕하세요]` |
-| 마우스 | `[왼쪽 클릭]`, `[오른쪽 더블클릭]`, `[왼쪽 누름]`, `[왼쪽 뗌]`, `[가운데 클릭]`, `[휠 위]`, `[휠 아래]` |
-| 커서 이동 | `[이동 800 465]` (화면 좌표), `[상대이동 10 -5]` |
-| 시간 지연 | `[지연 0.5]` (초), `[지연 500ms]` |
+| 키 | `[key a]` `[key ctrl+c]` `[key w down]` `[key w up]` `[key a 80ms]` |
+| 문장 | `[text Hello]` |
+| 마우스 | `[left click]` `[right doubleclick]` `[left down]` `[left up]` `[wheel up]` |
+| 커서 이동 | `[move 800 465]` (화면 좌표) `[moveby 10 -5]` (지금 위치에서) |
+| 지연 | `[delay 0.5]` (초) `[delay 500ms]` |
 
-키 이름은 AutoHotkey 이름(`Space`, `Enter`, `LControl`, `Numpad1` 등)을 쓰고, `스페이스`, `엔터`, `탭`, `쉬프트`, `컨트롤`, `알트`, `윈도우`, `백스페이스`, `삭제`, `위`, `아래`, `왼쪽`, `오른쪽`, `한영` 같은 한글 이름도 됩니다. 알아볼 수 없는 동작은 불러올 때 어떤 것인지 알려 주고 건너뜁니다. 문장 안에 `]`를 넣으려면 `\]`로 씁니다.
+맨 앞의 `[settings]`는 없어도 되고, 필요한 항목만 써도 됩니다.
 
-### 테마
+| 설정 | 값 |
+|---|---|
+| `theme` | `default` `dark` `latte` `hacker` |
+| `start` `stop` `capture` | 시작 / 중지 / 커서 위치 추가 단축키 (`F9`, `Ctrl+F9` 등) |
+| `repeat` `loops` | 반복 `on` / `off`, 반복 횟수 (0 = 무한) |
+| `startdelay` `interval` | 시작 전 지연, 이벤트 간격 (초) |
+| `keyhold` | 키 누르는 시간 (`50ms`) |
+| `mode` | 입력 방식 `event` / `input` |
 
-`설정 → 테마`에서 **기본 / 라이트 / 다크 / 해커** 중에 고를 수 있습니다. 고른 테마는 다음 실행 때도 유지됩니다.
+### 버그 신고 · 기능 제안
 
-- **기본**: G Macro와 같은 모양 (입체 버튼, 굴림)
-- **라이트 / 다크**: 기본과 글꼴·모양은 같고 색만 다릅니다 (라이트는 베이지 톤)
-- **해커**: 검은 바탕에 초록 글씨, VS Code 기본 글꼴(Consolas)
+프로그램의 `정보 → 버그 신고 / 기능 제안`, 또는 [Issues](../../issues)
 
-제목 표시줄 색은 Windows 11에서, 어두운 메뉴는 Windows 10(1903) 이상에서 바뀝니다.
+### 참고
 
-### 버그 신고 / 기능 제안
+- 관리자 권한으로 실행된 프로그램에 입력하려면 YPMacro도 관리자 권한으로 실행하세요.
+- 설정은 레지스트리 `HKCU\Software\YPMacro`에 저장됩니다. 프로그램 폴더에는 파일을 만들지 않습니다.
+- 게임이나 서비스에서 매크로를 금지하는지 먼저 확인하세요.
+- exe는 GitHub Actions가 이 저장소의 소스로 자동 빌드합니다. AutoHotkey v2가 있으면 `YPMacro.ahk`를 바로 실행할 수 있습니다.
+- G Macro Second Edition을 참고해 새로 만든 별도 프로그램이며, 원작과는 관계없습니다.
 
-프로그램 메뉴의 `정보 → 버그 신고` / `기능 제안`을 누르면 신고 양식이 브라우저로 열립니다 (버그 신고는 버전과 Windows 정보가 미리 채워집니다). [Issues](../../issues) 페이지에서 직접 남겨도 됩니다. GitHub 계정이 필요합니다.
+---
 
-### 기타 설정
+## English
 
-시작 시 지연, 이벤트 간격, 반복 횟수, 키 누르는 시간, 입력 전송 방식(Event / Input), 선택한 줄부터 시작, 이벤트 추가 후 창 닫기(끄면 창을 연 채로 이벤트를 계속 추가), 항상 위, 효과음
+A free keyboard & mouse macro tool for Windows with the same layout as G Macro.
+Opens G Macro `.gmc` files as they are. *(The program's interface is in Korean.)*
 
-## 참고
+### Features
 
-- 관리자 권한으로 실행 중인 프로그램에 입력하려면 YPMacro도 관리자 권한으로 실행해야 합니다.
-- 설정과 마지막 목록은 레지스트리 `HKEY_CURRENT_USER\Software\YPMacro`에 저장되며, 프로그램 폴더에는 파일을 만들지 않습니다. (v1.2 이하에서 쓰던 `Software\YP Macro` 키의 설정은 처음 실행할 때 자동으로 옮겨집니다.)
-- `.ypm` 파일을 처음 저장하면 `.ypm`을 YPMacro로 열도록 `HKEY_CURRENT_USER\Software\Classes\.ypm`, `YPMacro.Macro` 키가 만들어집니다 (관리자 권한 필요 없음).
-- 흔적 없이 지우려면 위의 레지스트리 키들을 삭제하면 됩니다.
-- 온라인 게임이나 서버에서는 매크로 사용을 금지하는 경우가 많으니 규칙을 먼저 확인하세요.
+- **Opens G Macro `.gmc` files**: no need to rebuild your macros
+- **Same layout as G Macro**: event list + Keyboard / Mouse / Time buttons
+- **Plain-text macro files**: `.ypm`, written like `[key w down], [delay 0.5]`
+- **Settings saved in the file**: theme, hotkeys, repeat, delays
+- **4 themes**: Default (G Macro look) / Dark / Latte / Hacker
+- **Portable**: a single exe, no installation
 
-## 소스에서 실행 / 빌드
+### Download
 
-- 릴리스에 올라가는 exe는 GitHub Actions가 이 저장소의 소스로 자동으로 만듭니다 ([build.yml](.github/workflows/build.yml)).
-- [AutoHotkey v2](https://www.autohotkey.com)가 설치되어 있으면 `YPMacro.ahk`를 더블클릭해 바로 실행할 수 있습니다.
-- exe 만들기: AutoHotkey Dash → **Compile** → Source에 `YPMacro.ahk`, Base File은 v2 64비트(`AutoHotkey64.exe`)를 고르고 **Convert**.
-  아이콘, 프로그램 이름, 버전 정보는 스크립트 맨 위의 `;@Ahk2Exe-` 지시문으로 자동 적용됩니다.
+Get the latest exe from [Releases](../../releases) and run it. (Windows 10 / 11, 64-bit)
 
-## 서드파티
+If "Windows protected your PC" appears, click **More info → Run anyway**.
 
-배포용 exe에는 AutoHotkey v2.0.28 인터프리터가 포함되어 있습니다. AutoHotkey는 GPL-2.0 라이선스를 따르며, 소스는 <https://github.com/AutoHotkey/AutoHotkey>에서 볼 수 있습니다.
+### Usage
+
+| Task | How |
+|---|---|
+| Add an event | **키보드 / 마우스 / 시간** (Keyboard / Mouse / Time) buttons |
+| Insert in the middle | Choose **삽입** (Insert), then add (goes below the selected row) |
+| Start / Stop | **F9** / **F10** |
+| Add cursor position | **F8** |
+| Repeat | Check **반복** (Repeat); count in `설정 → 기타 설정` (Settings → Other), 0 = forever |
+| Edit / Delete | Double-click a row / Delete key (right-click menu too) |
+| Save / Open | `파일` (File) menu, drag a file onto the window, or double-click a `.ypm` |
+| Change hotkeys / theme | `설정` (Settings) menu |
+
+To import a G Macro file, open the `.gmc` via `파일 → 불러오기` (File → Open). When asked whether to match G Macro's timing, click **예** (Yes).
+
+### Writing .ypm files
+
+Write each action in `[ ]` and separate them with commas. Text outside brackets is ignored.
+
+```
+[settings theme=dark start=F9 stop=F10 repeat=on],
+[key w down], [left click], [delay 0.5], [move 800 465], [key w up]
+```
+
+| Action | Examples |
+|---|---|
+| Key | `[key a]` `[key ctrl+c]` `[key w down]` `[key w up]` `[key a 80ms]` |
+| Text | `[text Hello]` |
+| Mouse | `[left click]` `[right doubleclick]` `[left down]` `[left up]` `[wheel up]` |
+| Move cursor | `[move 800 465]` (screen) `[moveby 10 -5]` (from current position) |
+| Delay | `[delay 0.5]` (seconds) `[delay 500ms]` |
+
+The leading `[settings]` is optional, and you can include only the items you need.
+
+| Setting | Value |
+|---|---|
+| `theme` | `default` `dark` `latte` `hacker` |
+| `start` `stop` `capture` | Hotkeys for start / stop / add cursor position (`F9`, `Ctrl+F9`, ...) |
+| `repeat` `loops` | Repeat `on` / `off`, number of loops (0 = forever) |
+| `startdelay` `interval` | Delay before start, gap between events (seconds) |
+| `keyhold` | How long each key is held (`50ms`) |
+| `mode` | Input method `event` / `input` |
+
+### Bugs & ideas
+
+In the app: `정보 → 버그 신고 / 기능 제안` (Info → Report a bug / Suggest a feature), or [Issues](../../issues)
+
+### Notes
+
+- To send input to a program running as administrator, run YPMacro as administrator too.
+- Settings are stored in the registry at `HKCU\Software\YPMacro`. No files are created next to the exe.
+- Check whether the game or service you use allows macros.
+- The exe is built from this repository's source by GitHub Actions. With AutoHotkey v2 installed, you can run `YPMacro.ahk` directly.
+- An independent program inspired by G Macro Second Edition; not affiliated with the original.
+
+---
+
+MIT License · The released exe includes the AutoHotkey v2.0.28 interpreter (GPL-2.0, [source](https://github.com/AutoHotkey/AutoHotkey)).
