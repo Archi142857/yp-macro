@@ -38,4 +38,4 @@ body:
     id: theme
     attributes:
       label: 사용 중인 테마
-      placeholder: 기본 / 라이트 / 다크 / 해커
+      placeholder: 기본 / 다크 / 라떼 / 해커
