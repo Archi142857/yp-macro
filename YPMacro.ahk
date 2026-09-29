@@ -2,10 +2,11 @@
 #SingleInstance Force
 ;@Ahk2Exe-SetName YPMacro
 ;@Ahk2Exe-SetDescription YPMacro
-;@Ahk2Exe-SetVersion 1.4.0.0
+;@Ahk2Exe-SetVersion 1.5.0.0
 ;@Ahk2Exe-SetMainIcon YPMacro.ico
+;@Ahk2Exe-AddResource YPMFile.ico, 300
 ; ==============================================================================
-;  YPMacro  v1.4  -  키보드/마우스 매크로   (AutoHotkey v2 스크립트)
+;  YPMacro  v1.5  -  키보드/마우스 매크로   (AutoHotkey v2 스크립트)
 ;
 ;  메인 창은 G Macro ver 2.0 과 같은 배치:
 ;    - 메뉴:  파일 | 시작 | 설정 | 정보
@@ -15,6 +16,7 @@
 ;    - 줄 더블클릭 = 수정,  우클릭 = 수정/지우기/위로/아래로,  Delete 키 = 지우기
 ;  기본 단축키:  F9 = 시작,  F10 = 중지,  F8 = 마우스 캡처(현재 좌표를 이동 이벤트로 추가)
 ;  테마:  설정 → 테마 (기본 / 라이트 / 다크 / 해커).  G Macro 의 .gmc 파일은 [파일 → 불러오기]로 읽을 수 있다.
+;  저장 파일은 .ypm:  [동작], [동작], ... 형식의 글 파일이라 메모장으로 직접 써도 된다 (아래 "저장 / 불러오기" 참고).
 ;    - 중지 키는 실행 중이 아닐 때 눌러도 "매크로가 눌러 둔 키/버튼"을 전부 떼어 준다.
 ;  설정과 마지막 목록은 레지스트리(HKEY_CURRENT_USER\Software\YPMacro)에 저장한다. exe 옆에 파일을 만들지 않는다.
 ;  (v1.2 까지 쓰던 키 이름 "YP Macro" 에 값이 있으면 처음 실행 때 새 키로 옮기고 옛 키는 지운다.)
@@ -33,13 +35,13 @@ SendMode("Event")               ; 기본 전송 방식. Input 은 보낼 때마�
 DllCall("winmm\timeBeginPeriod", "UInt", 1)     ; Sleep 정밀도를 1ms 단위로
 
 APP_TITLE  := "YPMacro"
-APP_VER    := "1.4"
+APP_VER    := "1.5"
 APP_DATE   := "2026-09-29"                              ; 정보 창의 최종 수정일
 APP_AUTHOR := "LEE YOUNGPYO"
 APP_URL    := "https://github.com/Archi142857/yp-macro"
 REG_KEY    := "HKEY_CURRENT_USER\Software\YPMacro"    ; 설정 + 마지막 목록 저장 위치
 REG_KEY_OLD := "HKEY_CURRENT_USER\Software\YP Macro"  ; v1.2 까지 쓰던 위치 (처음 실행 때 새 키로 옮긴다)
-FILE_MAGIC := "GMACROSTYLE1"                           ; [저장]/[불러오기] 하는 매크로 파일(.gmx) 형식은 그대로
+FILE_MAGIC := "GMACROSTYLE1"                           ; v1.4 까지 저장하던 .gmx 파일의 첫 줄 (불러오기만)
 CLICK_HOLD := 30        ; 마우스 클릭 시 버튼을 누르고 있는 시간(ms)
 
 App := { events: [], running: false, stopReq: false, capturing: false
@@ -50,25 +52,31 @@ App := { events: [], running: false, stopReq: false, capturing: false
 ui  := {}
 win := ""
 
-; ---- 테마 색 (0xRRGGBB).  "default" = 윈도우 기본 모양 그대로 ----
-;  bg 창 배경 / panel 목록·입력칸 / text 글자 / dim 흐린 글자 / line 선 / btn·btnLine·btnDown·btnText·btnDownText 버튼
-;  sel·selText 목록에서 고른 줄 / accent 기본 버튼 테두리·링크 / hover·hoverText 메뉴를 연 동안 / radius 버튼 모서리
-;  classic = 라디오·체크박스를 옛날 모양으로 그려서 글자색을 바꿀 수 있게 (어두운 테마용) / dark = 제목 표시줄·메뉴를 어둡게
-;  "기본" 은 G Macro 처럼: 윈도우 고전 모양 컨트롤(입체 버튼, 오목한 목록) + 굴림 9pt + 시스템 색
+; ---- 테마 (색은 0xRRGGBB) ----
+;  "기본" 은 G Macro 처럼: 윈도우 고전 모양 컨트롤(입체 버튼, 오목한 목록) + 굴림 9pt + 시스템 색.
+;  라이트·다크는 기본과 글꼴·모양이 같고 색만 다르다 (style "bevel" = 입체 버튼을 테마 색으로 그림).
+;  해커만 글꼴(VS Code 기본 글꼴 Consolas)과 모양(style "flat" = 테두리만 있는 납작한 버튼)이 다르다.
+;  bg 창 배경 / menuBg 메뉴 줄 / panel 목록·입력칸 / text 글자 / dim 흐린 글자 / line 선
+;  btn 버튼 면 / btnHi·btnLo·btnDk 입체 버튼의 밝은 선·그림자·진한 그림자 / btnLine 납작한 버튼 테두리
+;  btnDown·btnDownText 누른 버튼(납작한 버튼) / btnText 버튼 글자 / sel·selText 목록에서 고른 줄
+;  accent 링크·강조 / hover·hoverText 메뉴를 연 동안 / dark = 제목 표시줄·팝업 메뉴를 어둡게
 THEME_ORDER := ["default", "light", "dark", "hacker"]
 THEMES := Map(
     "default", { name: "기본" },
-    "light",   { name: "라이트", font: "Malgun Gothic", radius: 6, classic: false, dark: false
-               , bg: 0xFCFCFC, panel: 0xFFFFFF, text: 0x1F1F1F, dim: 0x7A7A7A, line: 0xDADFE6
-               , btn: 0xF2F6FB, btnLine: 0xBCCADB, btnDown: 0xD9E5F2, btnText: 0x1F1F1F, btnDownText: 0x1F1F1F
-               , sel: 0x0067C0, selText: 0xFFFFFF, accent: 0x0067C0, hover: 0xE6EEF7, hoverText: 0x1F1F1F },
-    "dark",    { name: "다크", font: "Malgun Gothic", radius: 6, classic: true, dark: true
-               , bg: 0x202020, panel: 0x2B2B2B, text: 0xE8E8E8, dim: 0x8C8C8C, line: 0x3F3F3F
-               , btn: 0x2F2F2F, btnLine: 0x4F4F4F, btnDown: 0x404040, btnText: 0xF0F0F0, btnDownText: 0xFFFFFF
-               , sel: 0x2E5F92, selText: 0xFFFFFF, accent: 0x5AA9F0, hover: 0x3D3D3D, hoverText: 0xFFFFFF },
-    "hacker",  { name: "해커", font: "Consolas", radius: 0, classic: true, dark: true
-               , bg: 0x000000, panel: 0x000000, text: 0x00FF41, dim: 0x00A12A, line: 0x00A12A
-               , btn: 0x000000, btnLine: 0x00A12A, btnDown: 0x00FF41, btnText: 0x00FF41, btnDownText: 0x000000
+    "light",   { name: "라이트", font: "", style: "bevel", dark: false
+               , bg: 0xF2EBDD, menuBg: 0xFAF5EC, panel: 0xFFFCF6, text: 0x3B3228, dim: 0x8E8272, line: 0xD6C9B4
+               , btn: 0xEBE2D1, btnHi: 0xFFFCF5, btnLo: 0xBBAB91, btnDk: 0x6F6150, btnText: 0x3B3228
+               , btnLine: 0xBBAB91, btnDown: 0xE0D4BF, btnDownText: 0x3B3228
+               , sel: 0xB08A57, selText: 0xFFFFFF, accent: 0x8A5A2B, hover: 0xE3D5BD, hoverText: 0x3B3228 },
+    "dark",    { name: "다크", font: "", style: "bevel", dark: true
+               , bg: 0x2D2D30, menuBg: 0x252526, panel: 0x1E1E1E, text: 0xE6E6E6, dim: 0x8C8C8C, line: 0x46464B
+               , btn: 0x3C3C3F, btnHi: 0x5F5F63, btnLo: 0x262628, btnDk: 0x0F0F10, btnText: 0xF0F0F0
+               , btnLine: 0x5F5F63, btnDown: 0x4A4A4E, btnDownText: 0xFFFFFF
+               , sel: 0x264F78, selText: 0xFFFFFF, accent: 0x3794FF, hover: 0x3E3E42, hoverText: 0xFFFFFF },
+    "hacker",  { name: "해커", font: "Consolas", style: "flat", dark: true
+               , bg: 0x000000, menuBg: 0x000000, panel: 0x000000, text: 0x00FF41, dim: 0x00A12A, line: 0x00A12A
+               , btn: 0x000000, btnHi: 0x00A12A, btnLo: 0x00A12A, btnDk: 0x00A12A, btnText: 0x00FF41
+               , btnLine: 0x00A12A, btnDown: 0x00FF41, btnDownText: 0x000000
                , sel: 0x00FF41, selText: 0x000000, accent: 0x00FF41, hover: 0x00FF41, hoverText: 0x000000 })
 
 OnMessage(0x002B, OnDrawItem)       ; WM_DRAWITEM     테마 색으로 버튼과 목록 줄 그리기
@@ -84,6 +92,9 @@ RegisterHotkeys(App.hkStart, App.hkStop, App.hkPos)
 LoadLastList()
 OnExit(ExitHandler)
 SetRunTitle()
+RegisterYpmType()                                       ; 예전에 연결했으면 지금 exe 경로로 맞춘다
+if (A_Args.Length && FileExist(A_Args[1]))              ; .ypm 파일을 더블클릭해서 실행했을 때
+    LoadMacroFile(A_Args[1])
 
 ; v1.1 까지 exe 옆에 만들던 설정/목록 파일을 레지스트리로 옮기고, 옮긴 파일은 지운다.
 ;  - YPMacro.ini / YPMacro_last.gmx      : 있으면 항상 가져온다 (레지스트리 값을 덮어씀)
@@ -174,6 +185,8 @@ CfgWrite(name, value) {
 ;  #HotIf 콜백 방식은 키를 누를 때마다 훅이 메인 스레드의 답을 기다려서, 매크로 실행 중에는 키보드 전체가 멈출 수 있다)
 OnMessage(0x0100, OnKeyDownMsg)     ; WM_KEYDOWN
 OnKeyDownMsg(wParam, lParam, msg, hwnd) {
+    if !IsSet(App)                                          ; 프로그램이 끝나는 중
+        return
     if (hwnd = ui.lb.Hwnd && wParam = 0x2E && !App.running) {     ; VK_DELETE
         DeleteSel()
         return 0
@@ -249,6 +262,13 @@ ExitHandler(*) {
     try ReleaseAll()
     try SaveSettings()
     try SaveLastList()
+    ; 프로그램이 끝나는 동안에도 창 메시지(커서 모양, 다시 그리기)가 오는데, 그때는 전역 변수가 이미 정리돼서
+    ; 처리기가 App 을 읽다가 오류 창이 뜬다. 처리기를 먼저 떼고, 창도 여기서 없앤다.
+    for msg, fn in Map(0x002B, OnDrawItem, 0x002C, OnMeasureItem, 0x0020, OnSetCursor, 0x0100, OnKeyDownMsg)
+        OnMessage(msg, fn, 0)
+    if App.dlgCleanup
+        try App.dlgCleanup.Call()
+    try win.Destroy()
     DllCall("winmm\timeEndPeriod", "UInt", 1)
     return 0
 }
@@ -261,6 +281,7 @@ BuildGui() {
     win := Gui("+MinimizeBox -MaximizeBox", APP_TITLE)
     win.SetFont("s9", ClassicFace())                        ; 테마 글꼴은 ApplyTheme → ThemeControls 에서 맞춘다
     win.OnEvent("Close", (*) => ExitApp())
+    win.OnEvent("DropFiles", OnDropFiles)
 
     ; ---- 메뉴:  파일 | 시작 | 설정 | 정보 -----------------------------------
     ui.mFile := Menu()
@@ -287,15 +308,22 @@ BuildGui() {
     ui.mBar.Add("파일", ui.mFile)
     ui.mBar.Add("시작", ui.mRun)
     ui.mBar.Add("설정", ui.mSet)
-    ui.mBar.Add("정보", (*) => ShowAbout())
+    ui.mInfo := Menu()
+    ui.mInfo.Add("YPMacro 정보...", (*) => ShowAbout())
+    ui.mInfo.Add()
+    ui.mInfo.Add("버그 신고...", (*) => OpenIssue("bug"))
+    ui.mInfo.Add("기능 제안...", (*) => OpenIssue("feature"))
+    ui.mInfo.Add("홈페이지 (GitHub)", (*) => Run(APP_URL))
+    ui.mBar.Add("정보", ui.mInfo)
 
     ; ---- 테마용 메뉴 줄: 기본 테마가 아닐 때 윈도우 메뉴 막대 대신 보인다 (메뉴 막대는 색을 바꿀 수 없어서) ----
     ui.menuRow := []
     for i, name in ["파일", "시작", "설정", "정보"] {
-        mi := win.AddText("x" (4 + (i - 1) * 38) " y2 w36 h19 Center 0x200 Hidden", name)   ; 0x200 = 세로 가운데
+        mi := win.AddText("x" (i = 1 ? 0 : 4 + (i - 1) * 38) " y0 w" (i = 1 ? 42 : 38) " h22 Center 0x200 Hidden", name)   ; 0x200 = 세로 가운데
         mi.OnEvent("Click", MenuRowClick.Bind(i))
         ui.menuRow.Push(mi)
     }
+    ui.menuFill := win.AddText("x156 y0 w100 h22 Hidden")              ; 메뉴 줄의 나머지 부분
     ui.menuLine := win.AddText("x0 y22 w256 h1 Hidden")
 
     ; ---- 이벤트 목록 (첫 줄 "1. 시작" 은 고정).  테마 색으로 그리려고 줄을 직접 그린다 ----
@@ -392,11 +420,19 @@ ApplyTheme(key, init := false) {
     win.BackColor := T ? Hex6(T.bg) : "Default"
     win.MenuBar := T ? "" : ui.mBar
     ThemeControls(win)
-    for mi in ui.menuRow
+    for mi in ui.menuRow {                                  ; 메뉴 줄: 해커는 테마 글꼴, 나머지는 윈도우 메뉴 막대 글꼴
         mi.Visible := T ? true : false
+        if T {
+            mi.SetFont("c" Hex6(T.text), T.style = "flat" ? T.font : MenuFace())
+            mi.Opt("Background" Hex6(T.menuBg))
+        }
+    }
+    ui.menuFill.Visible := T ? true : false
     ui.menuLine.Visible := T ? true : false
-    if T
+    if T {
+        ui.menuFill.Opt("Background" Hex6(T.menuBg))
         ui.menuLine.Opt("Background" Hex6(T.line))
+    }
     dy := T ? 23 : 0
     for item in ui.layout
         item[1].Move(item[2], item[3] + dy)
@@ -412,28 +448,23 @@ MainHeight() => App.T ? 210 : 187
 ; 창 안의 컨트롤 색과 글꼴을 현재 테마에 맞춘다 (메인 창과 모든 대화상자 공통). 글자 크기와 굵기는 그대로 둔다.
 ThemeControls(g) {
     T := App.T
-    face := T ? T.font : ClassicFace()
+    face := (T && T.font != "") ? T.font : ClassicFace()   ; 해커 말고는 기본 테마와 같은 글꼴
     fg := T ? Hex6(T.text) : "Default"
     lines := []
     for hwnd, ctrl in g {
         switch ctrl.Type {
             case "Button":
                 ctrl.SetFont(, face)
-                SetOwnerDrawButton(ctrl, T ? true : false)
-                if !T
-                    ctrl.Opt("-Theme")                      ; G Macro 처럼 입체 버튼
+                SetOwnerDrawButton(ctrl, T ? true : false)      ; 테마에서는 직접 그림
+                SetClassic(hwnd)                                ; 기본 테마: G Macro 처럼 입체 버튼
             case "ListBox":
                 ctrl.SetFont("c" fg, face)
                 ctrl.Opt(T ? "Background" Hex6(T.panel) : "BackgroundDefault")
-                if T {
-                    ctrl.Opt("+Theme")
-                    SetCtlTheme(hwnd, T.dark ? "DarkMode_Explorer" : "")
-                } else
-                    ctrl.Opt("-Theme")                      ; 오목한 고전 테두리
+                SetClassic(hwnd)                                ; 오목한 고전 테두리
                 if (ctrl = ui.lb)
                     UpdateListItemHeight()
             case "Radio", "CheckBox":
-                ctrl.Opt((!T || T.classic) ? "-Theme" : "+Theme")
+                SetClassic(hwnd)                                ; 고전 모양이어야 글자색이 먹는다
                 ctrl.SetFont("c" fg, face)
                 ctrl.Opt(T ? "Background" Hex6(T.bg) : "BackgroundDefault")
             case "Text":
@@ -452,11 +483,7 @@ ThemeControls(g) {
             case "Edit", "DDL", "ComboBox":
                 ctrl.SetFont("c" fg, face)
                 ctrl.Opt(T ? "Background" Hex6(T.panel) : "BackgroundDefault")
-                if T {
-                    ctrl.Opt("+Theme")
-                    SetCtlTheme(hwnd, T.dark ? "DarkMode_CFD" : "")
-                } else
-                    ctrl.Opt("-Theme")
+                SetClassic(hwnd)
             case "Hotkey":
                 ctrl.SetFont(, face)
         }
@@ -489,6 +516,8 @@ SetOwnerDrawButton(ctrl, on) {
 }
 
 OnDrawItem(wParam, lParam, msg, hwnd) {
+    if !IsSet(App)                                          ; 프로그램이 끝나는 중
+        return
     kind := NumGet(lParam, 0, "UInt")
     if (kind != 2 && kind != 4)                             ; ODT_LISTBOX, ODT_BUTTON 만
         return
@@ -513,6 +542,8 @@ OnMeasureItem(wParam, lParam, msg, hwnd) {
 }
 
 OnSetCursor(wParam, lParam, msg, hwnd) {
+    if !IsSet(App)                                          ; 프로그램이 끝나는 중
+        return
     if App.linkCtl.Has(wParam) {
         DllCall("SetCursor", "Ptr", DllCall("LoadCursor", "Ptr", 0, "Ptr", 32649, "Ptr"))     ; IDC_HAND
         return true
@@ -525,31 +556,67 @@ DrawThemedButton(ctl, dc, prc, state) {
         return
     x1 := NumGet(prc, 0, "Int"), y1 := NumGet(prc, 4, "Int"), x2 := NumGet(prc, 8, "Int"), y2 := NumGet(prc, 12, "Int")
     down := state & 0x1
-    FillRectColor(dc, prc, T.bg)                            ; 둥근 모서리 바깥은 창 배경
-    pen := DllCall("CreatePen", "Int", 0, "Int", 1, "UInt", BGR(App.defBtn.Has(ctl) ? T.accent : T.btnLine), "Ptr")
-    br  := DllCall("CreateSolidBrush", "UInt", BGR(down ? T.btnDown : T.btn), "Ptr")
-    op  := DllCall("SelectObject", "Ptr", dc, "Ptr", pen, "Ptr")
-    ob  := DllCall("SelectObject", "Ptr", dc, "Ptr", br, "Ptr")
-    if T.radius
-        DllCall("RoundRect", "Ptr", dc, "Int", x1, "Int", y1, "Int", x2, "Int", y2, "Int", T.radius, "Int", T.radius)
-    else
-        DllCall("Rectangle", "Ptr", dc, "Int", x1, "Int", y1, "Int", x2, "Int", y2)
-    DllCall("SelectObject", "Ptr", dc, "Ptr", op)
-    DllCall("SelectObject", "Ptr", dc, "Ptr", ob)
-    DllCall("DeleteObject", "Ptr", pen)
-    DllCall("DeleteObject", "Ptr", br)
+    focus := (state & 0x10) && !(state & 0x200)             ; 키보드로 포커스를 옮겼을 때만 표시
+    if (T.style = "bevel") {
+        ; 윈도우 고전 입체 버튼(G Macro 의 버튼)과 같은 모양을 테마 색으로. 기본 버튼·포커스 버튼은 진한 테두리가 한 겹 더.
+        FillRectXY(dc, x1, y1, x2, y2, T.btn)
+        if (App.defBtn.Has(ctl) || (state & 0x10)) {
+            FrameXY(dc, x1, y1, x2, y2, T.btnDk)
+            x1 += 1, y1 += 1, x2 -= 1, y2 -= 1
+        }
+        if down {
+            FrameXY(dc, x1, y1, x2, y2, T.btnLo)            ; 눌림: 납작한 그림자 테두리
+        } else {
+            FillRectXY(dc, x1, y1, x2 - 1, y1 + 1, T.btnHi)             ; 위, 왼쪽 밝은 선
+            FillRectXY(dc, x1, y1, x1 + 1, y2 - 1, T.btnHi)
+            FillRectXY(dc, x1, y2 - 1, x2, y2, T.btnDk)                 ; 아래, 오른쪽 진한 그림자
+            FillRectXY(dc, x2 - 1, y1, x2, y2, T.btnDk)
+            FillRectXY(dc, x1 + 1, y2 - 2, x2 - 1, y2 - 1, T.btnLo)     ; 안쪽 그림자
+            FillRectXY(dc, x2 - 2, y1 + 1, x2 - 1, y2 - 1, T.btnLo)
+        }
+        fg := (state & 0x4) ? T.dim : T.btnText
+        off := down ? 1 : 0                                 ; 누르면 글자가 한 칸 내려간다
+    } else {
+        ; 해커: 테두리만 있는 납작한 버튼, 누르면 색이 뒤집힌다
+        FillRectXY(dc, x1, y1, x2, y2, down ? T.btnDown : T.btn)
+        FrameXY(dc, x1, y1, x2, y2, App.defBtn.Has(ctl) ? T.accent : T.btnLine)
+        fg := (state & 0x4) ? T.dim : down ? T.btnDownText : T.btnText
+        off := 0
+    }
+    tr := Buffer(16)
+    NumPut("Int", NumGet(prc, 0, "Int") + off, "Int", NumGet(prc, 4, "Int") + off
+         , "Int", NumGet(prc, 8, "Int") + off, "Int", NumGet(prc, 12, "Int") + off, tr)
     of := DllCall("SelectObject", "Ptr", dc, "Ptr", SendMessage(0x0031, 0, 0, ctl), "Ptr")     ; WM_GETFONT
     DllCall("SetBkMode", "Ptr", dc, "Int", 1)                                                ; TRANSPARENT
-    DllCall("SetTextColor", "Ptr", dc, "UInt", BGR((state & 0x4) ? T.dim : down ? T.btnDownText : T.btnText))
-    DllCall("DrawText", "Ptr", dc, "Str", ControlGetText(ctl), "Int", -1, "Ptr", prc, "UInt", 0x25)   ; 가운데, 한 줄
+    DllCall("SetTextColor", "Ptr", dc, "UInt", BGR(fg))
+    DllCall("DrawText", "Ptr", dc, "Str", ControlGetText(ctl), "Int", -1, "Ptr", tr, "UInt", 0x25)    ; 가운데, 한 줄
     DllCall("SelectObject", "Ptr", dc, "Ptr", of)
-    if ((state & 0x10) && !(state & 0x200)) {               ; 키보드로 포커스를 옮겼을 때만 안쪽에 강조색 테두리
-        fr := Buffer(16)
-        NumPut("Int", x1 + 3, "Int", y1 + 3, "Int", x2 - 3, "Int", y2 - 3, fr)
-        br := DllCall("CreateSolidBrush", "UInt", BGR(down ? T.btnDownText : T.accent), "Ptr")
-        DllCall("FrameRect", "Ptr", dc, "Ptr", fr, "Ptr", br)
-        DllCall("DeleteObject", "Ptr", br)
+    if focus {
+        fx1 := NumGet(prc, 0, "Int") + 4, fy1 := NumGet(prc, 4, "Int") + 4
+        fx2 := NumGet(prc, 8, "Int") - 4, fy2 := NumGet(prc, 12, "Int") - 4
+        if (T.style = "bevel") {                            ; 고전 버튼처럼 점선
+            fr := Buffer(16)
+            NumPut("Int", fx1, "Int", fy1, "Int", fx2, "Int", fy2, fr)
+            DllCall("DrawFocusRect", "Ptr", dc, "Ptr", fr)
+        } else
+            FrameXY(dc, fx1, fy1, fx2, fy2, down ? T.btnDownText : T.accent)
     }
+}
+
+FillRectXY(dc, x1, y1, x2, y2, rgb) {
+    r := Buffer(16)
+    NumPut("Int", x1, "Int", y1, "Int", x2, "Int", y2, r)
+    br := DllCall("CreateSolidBrush", "UInt", BGR(rgb), "Ptr")
+    DllCall("FillRect", "Ptr", dc, "Ptr", r, "Ptr", br)
+    DllCall("DeleteObject", "Ptr", br)
+}
+
+FrameXY(dc, x1, y1, x2, y2, rgb) {
+    r := Buffer(16)
+    NumPut("Int", x1, "Int", y1, "Int", x2, "Int", y2, r)
+    br := DllCall("CreateSolidBrush", "UInt", BGR(rgb), "Ptr")
+    DllCall("FrameRect", "Ptr", dc, "Ptr", r, "Ptr", br)
+    DllCall("DeleteObject", "Ptr", br)
 }
 
 DrawListItem(ctl, dc, prc, item, state) {
@@ -577,11 +644,11 @@ DrawListItem(ctl, dc, prc, item, state) {
         DllCall("DrawText", "Ptr", dc, "Ptr", buf, "Int", -1, "Ptr", tr, "UInt", 0x8824)     ; 한 줄, 세로 가운데, & 그대로, 넘치면 …
         DllCall("SelectObject", "Ptr", dc, "Ptr", of)
     }
-    if (!T && (state & 0x10) && !(state & 0x200))
+    if ((!T || T.style = "bevel") && (state & 0x10) && !(state & 0x200))
         DllCall("DrawFocusRect", "Ptr", dc, "Ptr", prc)
 }
 
-; 목록 줄 높이를 지금 글꼴에 맞춘다 (기본 테마는 윈도우 목록과 같게 = G Macro 와 같게, 다른 테마는 2px 여유)
+; 목록 줄 높이를 지금 글꼴에 맞춘다 (윈도우 목록과 같게 = G Macro 와 같게. 해커만 2px 여유)
 UpdateListItemHeight() {
     lb := ui.lb.Hwnd
     dc := DllCall("GetDC", "Ptr", lb, "Ptr")
@@ -590,23 +657,21 @@ UpdateListItemHeight() {
     DllCall("GetTextMetrics", "Ptr", dc, "Ptr", tm)
     DllCall("SelectObject", "Ptr", dc, "Ptr", of)
     DllCall("ReleaseDC", "Ptr", lb, "Ptr", dc)
-    SendMessage(0x01A0, 0, NumGet(tm, 0, "Int") + (App.T ? 2 : 0), lb)      ; LB_SETITEMHEIGHT
+    SendMessage(0x01A0, 0, NumGet(tm, 0, "Int") + ((App.T && App.T.style = "flat") ? 2 : 0), lb)      ; LB_SETITEMHEIGHT
 }
 
 ; 테마 메뉴 줄의 [파일] [시작] [설정] [정보]
 MenuRowClick(i, ctrl, *) {
-    if (i = 4)
-        return ShowAbout()
     T := App.T
     if T {                                                  ; 메뉴가 열려 있는 동안 강조
         ctrl.Opt("Background" Hex6(T.hover))
         ctrl.SetFont("c" Hex6(T.hoverText))
     }
     WinGetPos(&x, &y, &w, &h, ctrl.Hwnd)
-    m := [ui.mFile, ui.mRun, ui.mSet][i]
+    m := [ui.mFile, ui.mRun, ui.mSet, ui.mInfo][i]
     m.Show(x, y + h)
     if (T && T = App.T) {                                   ; 메뉴에서 테마를 바꿨으면 ApplyTheme 가 이미 칠했다
-        ctrl.Opt("Background" Hex6(T.bg))
+        ctrl.Opt("Background" Hex6(T.menuBg))
         ctrl.SetFont("c" Hex6(T.text))
     }
 }
@@ -642,11 +707,22 @@ SetMenuDarkMode(dark) {
     }
 }
 
-SetCtlTheme(hwnd, name) {
-    if (name = "")
-        DllCall("uxtheme\SetWindowTheme", "Ptr", hwnd, "Ptr", 0, "Ptr", 0)
-    else
-        DllCall("uxtheme\SetWindowTheme", "Ptr", hwnd, "Str", name, "Ptr", 0)
+; 컨트롤의 윈도우 테마를 끈다 → 고전 모양(G Macro 와 같은 입체 테두리)으로 그려지고, 라디오·체크박스에 글자색이 먹는다.
+; (AHK 의 Opt("-Theme") 는 컨트롤을 만들 때만 적용되고 만든 뒤에는 아무 효과가 없어서 직접 부른다)
+SetClassic(hwnd) => DllCall("uxtheme\SetWindowTheme", "Ptr", hwnd, "Str", "", "Str", "")
+
+; 윈도우 메뉴 막대 글꼴 이름. 테마 메뉴 줄을 기본 테마의 메뉴 막대와 같은 글꼴로 보이게 한다.
+MenuFace() {
+    static face := ""
+    if (face = "") {
+        ncm := Buffer(504, 0)                               ; NONCLIENTMETRICSW
+        NumPut("UInt", 504, ncm, 0)
+        if DllCall("SystemParametersInfo", "UInt", 0x29, "UInt", 504, "Ptr", ncm, "UInt", 0)   ; SPI_GETNONCLIENTMETRICS
+            face := StrGet(ncm.Ptr + 252, 32, "UTF-16")     ; lfMenuFont.lfFaceName
+        if (face = "")
+            face := "Malgun Gothic"
+    }
+    return face
 }
 
 RedrawAll(hwnd) => DllCall("RedrawWindow", "Ptr", hwnd, "Ptr", 0, "Ptr", 0, "UInt", 0x0485)    ; 지우고 다시, 테두리·자식 포함
@@ -769,7 +845,7 @@ UpdateRunState() {
     }
 }
 
-; [정보] 창: 프로그램 / 개발자 정보.  G Macro 의 About 창처럼 왼쪽에 아이콘, 오른쪽에 정보.
+; [정보] 창: 프로그램 / 개발자 정보.  왼쪽에 아이콘, 오른쪽에 정보.
 ShowAbout() {
     if !CanOpenDialog()
         return
@@ -777,23 +853,63 @@ ShowAbout() {
     c := {}
     try d.AddPicture("x18 y18 w48 h48 Icon1", A_IsCompiled ? A_ScriptFullPath : A_ScriptDir "\YPMacro.ico")
     d.SetFont("s13 bold")
-    d.AddText("x84 y14 w236", APP_TITLE "  v" APP_VER)
+    d.AddText("x84 y14 w258", APP_TITLE "  v" APP_VER)
     d.SetFont("s9 norm")
-    MarkDim(d.AddText("x84 y42 w236", "G Macro 방식의 키보드/마우스 매크로"))
-    d.AddText("x84 y70 w236", "개발자:  " APP_AUTHOR)
+    MarkDim(d.AddText("x84 y42 w258", "목록으로 만드는 키보드/마우스 매크로"))
+    d.AddText("x84 y70 w258", "개발자:  " APP_AUTHOR)
     d.SetFont("underline")
-    lnk := MarkLink(d.AddText("x84 y90 w236", RegExReplace(APP_URL, "^https://")))
+    lnk := MarkLink(d.AddText("x84 y90 w258", RegExReplace(APP_URL, "^https://")))
     d.SetFont("norm")
     lnk.OnEvent("Click", (*) => Run(APP_URL))
-    d.AddText("x84 y110 w236", "최종 수정일:  " APP_DATE)
-    d.AddText("x84 y130 w236", "라이선스:  MIT License")
-    d.AddText("x18 y158 w302 h1 0x10")                     ; 가로 구분선
-    MarkDim(d.AddText("x18 y168 w302", "단축키:  " HotkeyHelp()))
-    MarkDim(d.AddText("x18 y188 w302", "원작:  G Macro Second Edition (Cho han nam)"))
-    MarkDim(d.AddText("x18 y208 w302", "Copyright (c) 2026 " APP_AUTHOR "  ·  AHK v" A_AhkVersion))
-    c.btnOk := d.AddButton("x130 y238 w78 h26 Default", "확인")
+    d.AddText("x84 y110 w258", "최종 수정일:  " APP_DATE)
+    d.AddText("x84 y130 w258", "라이선스:  MIT License")
+    d.AddText("x18 y158 w324 h1 0x10")                     ; 가로 구분선
+    MarkDim(d.AddText("x18 y168 w324", "단축키:  " HotkeyHelp()))
+    MarkDim(d.AddText("x18 y188 w324", "설정은 이 PC에만 저장되며 밖으로 보내지 않습니다."))
+    d.SetFont("underline")
+    fb := MarkLink(d.AddText("x18 y208 w324", "버그 신고 · 기능 제안"))
+    d.SetFont("norm")
+    fb.OnEvent("Click", (*) => OpenIssue())
+    MarkDim(d.AddText("x18 y228 w324", "(c) 2026 " APP_AUTHOR "  ·  AHK v" A_AhkVersion))
+    c.btnOk := d.AddButton("x141 y258 w78 h26 Default", "확인")
     c.btnOk.OnEvent("Click", (*) => CloseDialog(d))
-    ShowDialog(d, 338, 276)
+    ShowDialog(d, 360, 296)
+}
+
+; 버그 신고 / 기능 제안: GitHub 이슈 양식을 브라우저로 연다. 버그 신고는 버전·윈도우·테마를 미리 채워 둔다.
+OpenIssue(kind := "") {
+    if (kind = "")
+        url := APP_URL "/issues/new/choose"
+    else if (kind = "bug")
+        url := APP_URL "/issues/new?template=bug_report.yml&version=" UriEncode("v" APP_VER)
+             . "&os=" UriEncode(WindowsLabel()) "&theme=" UriEncode(THEMES[App.theme].name)
+    else
+        url := APP_URL "/issues/new?template=feature_request.yml"
+    try Run(url)
+    catch
+        Warn("브라우저를 열지 못했습니다. 아래 주소로 들어가 주세요.`n`n" url)
+}
+
+WindowsLabel() {
+    v := StrSplit(A_OSVersion, ".")
+    if (v.Length < 3 || Integer(v[1]) < 10)
+        return "Windows " A_OSVersion
+    return (Integer(v[3]) >= 22000 ? "Windows 11" : "Windows 10") " (" A_OSVersion ")"
+}
+
+; 주소에 넣을 수 있게 UTF-8 로 %XX 인코딩
+UriEncode(s) {
+    buf := Buffer(StrPut(s, "UTF-8"))
+    StrPut(s, buf, "UTF-8")
+    out := ""
+    loop buf.Size - 1 {
+        b := NumGet(buf, A_Index - 1, "UChar")
+        if (b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x5A) || (b >= 0x61 && b <= 0x7A) || b = 0x2D || b = 0x2E || b = 0x5F || b = 0x7E
+            out .= Chr(b)
+        else
+            out .= Format("%{:02X}", b)
+    }
+    return out
 }
 
 ; ==============================================================================
@@ -1651,7 +1767,7 @@ ReleaseAllLater() {
 }
 
 ; ==============================================================================
-;  저장 / 불러오기   ([파일] 메뉴로 사용자가 고른 곳에만 .gmx 파일을 만든다. 형식은 v1.0 과 같음)
+;  저장 / 불러오기   ([파일] 메뉴로 사용자가 고른 곳에만 .ypm 파일을 만든다. 예전 .gmx 와 G Macro .gmc 는 불러오기만)
 ; ==============================================================================
 Serialize(ev) {
     t := "`t"
@@ -1734,8 +1850,20 @@ LoadLastList() {
     RefreshList(1)
 }
 
+; ---- .ypm 매크로 파일:  [동작], [동작], ...   (UTF-8 글 파일. 메모장으로 직접 써도 된다) ----
+;  [ ] 하나가 동작 하나이고 쉼표로 구분한다. 대괄호 밖의 글(줄바꿈, 설명)은 무시한다.
+;  [키 w]  [키 w 누름]  [키 w 뗌]  [키 Ctrl+C]  [문장 안녕하세요]
+;  [왼쪽 클릭]  [오른쪽 더블클릭]  [왼쪽 누름]  [왼쪽 뗌]  [가운데 클릭]  [휠 위]  [휠 아래]
+;  [이동 800 465]  [상대이동 10 -5]  [지연 0.5]  [지연 500ms]
+;  대괄호 안에서 ] 는 \], \ 는 \\ 로 쓴다 (문장에 넣을 때만 필요).
 SaveMacroFile(path, quiet := false) {
-    txt := FILE_MAGIC "`n" EventLines()
+    parts := []
+    for ev in App.events
+        if ((a := YpmAction(ev)) != "")
+            parts.Push(a)
+    txt := ""
+    for i, a in parts
+        txt .= a (i < parts.Length ? ",`r`n" : "`r`n")
     try {
         f := FileOpen(path, "w", "UTF-8")
         f.Write(txt)
@@ -1746,6 +1874,164 @@ SaveMacroFile(path, quiet := false) {
         return false
     }
     return true
+}
+
+; 이벤트 하나 → 동작 글자 하나 "[...]"
+YpmAction(ev) {
+    switch ev.type {
+        case "KEY":
+            s := "키 " ev.key (ev.mode = "down" ? " 누름" : ev.mode = "up" ? " 뗌" : "")
+            if (ev.mode = "tap" && ev.hold != App.keyHold)
+                s .= " " ev.hold "ms"
+        case "TEXT":
+            s := "문장 " ev.text
+        case "MOUSE":
+            if InStr(ev.btn, "Wheel")
+                s := "휠 " (ev.btn = "WheelUp" ? "위" : "아래")
+            else
+                s := (ev.btn = "Left" ? "왼쪽" : ev.btn = "Right" ? "오른쪽" : "가운데") " "
+                   . (ev.mode = "click" ? "클릭" : ev.mode = "double" ? "더블클릭" : ev.mode = "down" ? "누름" : "뗌")
+        case "MOVE":
+            s := (ev.rel ? "상대이동 " : "이동 ") ev.x " " ev.y
+        case "DELAY":
+            s := "지연 " RTrim(RTrim(Format("{:.3f}", ev.ms / 1000), "0"), ".")
+        default:
+            return ""
+    }
+    return "[" StrReplace(StrReplace(s, "\", "\\"), "]", "\]") "]"
+}
+
+; .ypm 글 → { events, bad: [해석하지 못한 동작 글자들] }
+ParseYpm(txt) {
+    evs := [], bad := []
+    len := StrLen(txt), i := 1
+    while (i <= len) {
+        if (SubStr(txt, i, 1) != "[") {                     ; 대괄호 밖은 건너뛴다
+            i += 1
+            continue
+        }
+        body := "", j := i + 1, closed := false
+        while (j <= len) {
+            c := SubStr(txt, j, 1)
+            if (c = "\" && j < len && InStr("\]", SubStr(txt, j + 1, 1))) {    ; \] → ],  \\ → \
+                body .= SubStr(txt, j + 1, 1)
+                j += 2
+                continue
+            }
+            if (c = "]") {
+                closed := true
+                break
+            }
+            body .= c
+            j += 1
+        }
+        if !closed {
+            bad.Push("[" SubStr(body, 1, 30) "  (닫는 ] 없음)")
+            break
+        }
+        r := ParseYpmAction(body)
+        if r {
+            for ev in r
+                evs.Push(ev)
+        } else
+            bad.Push("[" body "]")
+        i := j + 1
+    }
+    return { events: evs, bad: bad }
+}
+
+; 동작 하나 "키 w 누름" → 이벤트 배열 (조합키는 여러 개), 알 수 없으면 0
+ParseYpmAction(body) {
+    static btns := Map("왼쪽", "Left", "left", "Left", "오른쪽", "Right", "right", "Right", "가운데", "Middle", "middle", "Middle")
+    static acts := Map("클릭", "click", "click", "click", "더블클릭", "double", "double", "double"
+                     , "누름", "down", "down", "down", "뗌", "up", "up", "up")
+    if !RegExMatch(Trim(body, " `t`r`n"), "s)^(\S+)\s*(.*)$", &m)
+        return 0
+    kw := StrLower(m[1]), rest := Trim(m[2], " `t`r`n")
+    switch kw {
+        case "키", "key":
+            return YpmKey(rest)
+        case "문장", "text":
+            return (rest != "") ? [{ type: "TEXT", text: RegExReplace(rest, "[\t\r\n]+", " ") }] : 0
+        case "왼쪽", "left", "오른쪽", "right", "가운데", "middle":
+            a := StrLower(rest = "" ? "클릭" : rest)
+            return acts.Has(a) ? [{ type: "MOUSE", btn: btns[kw], mode: acts[a] }] : 0
+        case "휠", "wheel":
+            a := StrLower(rest)
+            if (a = "위" || a = "up")
+                return [{ type: "MOUSE", btn: "WheelUp", mode: "click" }]
+            if (a = "아래" || a = "down")
+                return [{ type: "MOUSE", btn: "WheelDown", mode: "click" }]
+            return 0
+        case "이동", "move", "상대이동", "moverel":
+            if !RegExMatch(rest, "i)^(-?\d+)\s*[ ,]\s*(-?\d+)\s*(상대|rel)?$", &n)
+                return 0
+            return [{ type: "MOVE", x: Integer(n[1]), y: Integer(n[2]), rel: (kw = "상대이동" || kw = "moverel" || n[3] != "") }]
+        case "지연", "delay", "wait", "대기":
+            if !RegExMatch(rest, "i)^(\d+(?:\.\d+)?)\s*(ms|초|s)?$", &n)
+                return 0
+            ms := (StrLower(n[2]) = "ms") ? Round(n[1]) : Round(n[1] * 1000)
+            return (ms <= 3600000) ? [{ type: "DELAY", ms: ms }] : 0
+    }
+    return 0
+}
+
+; [키 ...] 의 내용: "w", "w 누름", "w 뗌", "a 80ms", "Ctrl+C"
+YpmKey(rest) {
+    words := []
+    for w in StrSplit(rest, [" ", "`t"])
+        if (w != "")
+            words.Push(w)
+    if !words.Length
+        return 0
+    keys := []
+    for k in (words[1] = "+" ? ["+"] : StrSplit(words[1], "+")) {
+        k := KeyAlias(k)
+        if (StrLen(k) = 1)
+            k := StrLower(k)                                ; 대문자 한 글자(C)는 Shift 가 섞여 보내지므로 소문자로
+        if !ValidKey(k)
+            return 0
+        keys.Push(k)
+    }
+    mode := "tap", hold := App.keyHold
+    loop words.Length - 1 {
+        w := StrLower(words[A_Index + 1])
+        if (w = "누름" || w = "down")
+            mode := "down"
+        else if (w = "뗌" || w = "up")
+            mode := "up"
+        else if RegExMatch(w, "^(\d+)ms$", &h)
+            hold := Integer(h[1])
+        else
+            return 0
+    }
+    if (keys.Length = 1)
+        return [{ type: "KEY", key: keys[1], mode: mode, hold: hold }]
+    if (mode != "tap")
+        return 0
+    evs := []                                               ; 조합키: 앞의 키들을 누른 채로 마지막 키를 눌렀다 뗀다
+    loop keys.Length - 1
+        evs.Push({ type: "KEY", key: keys[A_Index], mode: "down", hold: hold })
+    evs.Push({ type: "KEY", key: keys[keys.Length], mode: "tap", hold: hold })
+    loop keys.Length - 1
+        evs.Push({ type: "KEY", key: keys[keys.Length - A_Index], mode: "up", hold: hold })
+    return evs
+}
+
+; 손으로 쓰기 쉽게 한글 키 이름도 받는다
+KeyAlias(k) {
+    static m := Map("스페이스", "Space", "엔터", "Enter", "탭", "Tab", "쉬프트", "Shift", "시프트", "Shift"
+                  , "컨트롤", "Ctrl", "알트", "Alt", "윈도우", "LWin", "백스페이스", "Backspace", "삭제", "Delete"
+                  , "위", "Up", "아래", "Down", "왼쪽", "Left", "오른쪽", "Right", "한영", "vk15", "한자", "vk19")
+    return m.Has(k) ? m[k] : k
+}
+
+; 글 파일 읽기: UTF-8 이 아니면(메모장에서 ANSI 로 저장한 경우 등) 한국어 코드 페이지로 다시 읽는다
+ReadTextFile(path) {
+    txt := FileRead(path, "UTF-8")
+    if InStr(txt, Chr(0xFFFD))
+        txt := FileRead(path, "CP949")
+    return txt
 }
 
 LoadMacroFile(path, quiet := false) {
@@ -1759,24 +2045,44 @@ LoadMacroFile(path, quiet := false) {
         return false
     }
     try {
-        txt := FileRead(path, "UTF-8")
+        txt := ReadTextFile(path)
     } catch as err {
         if !quiet
             Warn("파일을 읽지 못했습니다: " err.Message)
         return false
     }
     lines := StrSplit(txt, "`n", "`r")
-    if (lines.Length = 0 || Trim(lines[1]) != FILE_MAGIC) {
-        if !quiet
-            Warn("매크로 파일이 아닙니다.`n(이 프로그램의 .gmx 파일과 G Macro 의 .gmc 파일을 읽을 수 있습니다.)")
-        return false
+    if (lines.Length && Trim(lines[1]) = FILE_MAGIC) {      ; v1.4 까지의 .gmx
+        lines.RemoveAt(1)
+        r := ParseEventLines(lines)
+        badList := []
+        loop r.bad
+            badList.Push("(알 수 없는 줄)")
+    } else {
+        r := ParseYpm(txt)
+        badList := r.bad
+        if (r.events.Length = 0 && badList.Length = 0 && !RegExMatch(path, "i)\.ypm$")) {
+            if !quiet
+                Warn("매크로 파일이 아닙니다.`n(.ypm, 예전 .gmx, G Macro 의 .gmc 파일을 읽을 수 있습니다.)")
+            return false
+        }
     }
-    lines.RemoveAt(1)
-    r := ParseEventLines(lines)
     App.events := r.events
     RefreshList(1)
-    if (!quiet)
-        Notify("불러옴: 이벤트 " r.events.Length "개" (r.bad ? "  (해석 못 한 줄 " r.bad "개 건너뜀)" : ""))
+    if quiet
+        return true
+    if badList.Length {
+        list := ""
+        for i, b in badList
+            if (i <= 5)
+                list .= "`n    " b
+        if (badList.Length > 5)
+            list .= "`n    … 외 " (badList.Length - 5) "개"
+        win.Opt("+OwnDialogs")
+        MsgBox("동작 " r.events.Length "개를 불러왔고, 알아볼 수 없는 동작 " badList.Length "개는 건너뛰었습니다." list
+            . "`n`n쓰는 법 예:  [키 w 누름], [왼쪽 클릭], [이동 800 465], [지연 0.5], [문장 안녕]", APP_TITLE, "Icon!")
+    } else
+        Notify("불러옴: 동작 " r.events.Length "개")
     return true
 }
 
@@ -1784,20 +2090,47 @@ SaveDialog() {
     if !CanOpenDialog()
         return
     win.Opt("+OwnDialogs")
-    path := FileSelect("S16", A_ScriptDir "\macro.gmx", "매크로 저장", "매크로 파일 (*.gmx)")
+    path := FileSelect("S16", A_ScriptDir "\macro.ypm", "매크로 저장", "YPMacro 매크로 (*.ypm)")
     if (path = "")
         return
-    if !RegExMatch(path, "i)\.gmx$")
-        path .= ".gmx"
-    if SaveMacroFile(path)
+    if !RegExMatch(path, "i)\.ypm$")
+        path .= ".ypm"
+    if SaveMacroFile(path) {
+        RegisterYpmType(true)                               ; .ypm 을 메모지 아이콘으로 보이고 더블클릭으로 열리게
         Notify("저장됨: " path)
+    }
+}
+
+; .ypm 파일을 YPMacro 로 열고, 탐색기에서 메모지 아이콘으로 보이게 한다 (현재 사용자만, 관리자 권한 필요 없음).
+; 처음 저장할 때 연결하고, 그 뒤로는 실행할 때마다 연결된 경로를 지금 실행 중인 exe 로 맞춘다 (새 버전으로 바꿨을 때).
+RegisterYpmType(first := false) {
+    base := "HKEY_CURRENT_USER\Software\Classes\"
+    cmd := A_IsCompiled ? '"' A_ScriptFullPath '" "%1"' : '"' A_AhkPath '" "' A_ScriptFullPath '" "%1"'
+    icon := A_IsCompiled ? A_ScriptFullPath ",-300" : A_ScriptDir "\YPMFile.ico"
+    try cur := RegRead(base "YPMacro.Macro\shell\open\command")
+    catch
+        cur := ""
+    if ((cur = "" && !first) || cur = cmd)
+        return
+    try {
+        RegWrite("YPMacro.Macro", "REG_SZ", base ".ypm")
+        RegWrite("YPMacro 매크로", "REG_SZ", base "YPMacro.Macro")
+        RegWrite(icon, "REG_SZ", base "YPMacro.Macro\DefaultIcon")
+        RegWrite(cmd, "REG_SZ", base "YPMacro.Macro\shell\open\command")
+        DllCall("shell32\SHChangeNotify", "Int", 0x08000000, "UInt", 0, "Ptr", 0, "Ptr", 0)   ; 탐색기 아이콘 새로 고침
+    }
+}
+
+OnDropFiles(g, ctrl, files, *) {                            ; 창에 파일을 끌어다 놓으면 불러오기
+    if !(App.running || App.dlg)
+        LoadMacroFile(files[1])
 }
 
 LoadDialog() {
     if !CanOpenDialog()
         return
     win.Opt("+OwnDialogs")
-    path := FileSelect(1, A_ScriptDir, "매크로 불러오기", "매크로 파일 (*.gmx; *.gmc)")
+    path := FileSelect(1, A_ScriptDir, "매크로 불러오기", "매크로 파일 (*.ypm; *.gmx; *.gmc)")
     if (path != "")
         LoadMacroFile(path)
 }
