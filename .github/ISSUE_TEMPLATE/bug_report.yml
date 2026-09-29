@@ -1,0 +1,41 @@
+name: 버그 신고
+description: YPMacro가 이상하게 동작하거나 오류 창이 뜰 때
+title: "[버그] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: 알려 주셔서 고맙습니다. 아래를 채워 주시면 원인을 찾는 데 큰 도움이 됩니다.
+  - type: textarea
+    id: what
+    attributes:
+      label: 무슨 일이 있었나요?
+      description: 오류 창이 떴다면 내용을 적거나 캡처를 붙여 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 어떻게 하면 다시 일어나나요?
+      placeholder: |
+        1. 테마를 다크로 바꾼다
+        2. X 버튼으로 창을 닫는다
+        3. 오류 창이 뜬다
+  - type: input
+    id: version
+    attributes:
+      label: YPMacro 버전
+      description: 메뉴의 정보 → YPMacro 정보에서 볼 수 있어요.
+      placeholder: v1.5
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Windows 버전
+      placeholder: Windows 11
+  - type: input
+    id: theme
+    attributes:
+      label: 사용 중인 테마
+      placeholder: 기본 / 라이트 / 다크 / 해커
